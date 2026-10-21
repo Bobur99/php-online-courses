@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\AuthController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,3 +18,15 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::patch('/profile/password', [AuthController::class, 'changePassword'])
         ->name('changePassword');
 });
+Route::middleware('auth:sanctum')
+    ->prefix('admin')
+    ->group(function (): void {
+        Route::get('/users', [UserController::class, 'index'])
+            ->name('admin.users.index');
+
+        Route::patch('/users/{user}/role', [UserController::class, 'updateRole'])
+            ->name('admin.users.role');
+
+        Route::patch('/users/{user}/block', [UserController::class, 'block'])
+            ->name('admin.users.block');
+    });
