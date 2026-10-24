@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CourseController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/register', [AuthController::class, 'register'])->name('register');
@@ -38,4 +39,14 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/categories', [CategoryController::class, 'store']);
     Route::patch('/categories/{category}', [CategoryController::class, 'update']);
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
+});
+
+
+Route::get('/courses', [CourseController::class, 'index']);
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::post('/courses', [CourseController::class, 'store']);
+    Route::patch('/courses/{course}', [CourseController::class, 'update']);
+    Route::delete('/courses/{course}', [CourseController::class, 'destroy']);
+    Route::post('/courses/{course}/publish', [CourseController::class, 'publish']);
 });
