@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Category;
 use App\Models\Course;
 use App\Models\User;
+use App\Events\CoursePublished;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -132,12 +134,18 @@ class CourseTest extends TestCase
 
         $course = Course::create($this->courseData($category, $teacher));
         $token = $teacher->createToken('api-token');
-
+        Event::fake();
         $this
             ->withToken($token->plainTextToken)
             ->postJson("/api/courses/{$course->id}/publish")
             ->assertOk()
             ->assertJsonPath('status', 'published');
+
+        Event::assertDispatched(
+            CoursePublished::class,
+            fn(CoursePublished $event): bool =>
+            $event->course->is($course)
+        );
 
         $this->assertDatabaseHas('courses', [
             'id' => $course->id,

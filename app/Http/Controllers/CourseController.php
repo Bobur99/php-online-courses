@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\CourseRequest;
 use App\Models\Course;
+use App\Events\CoursePublished;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -82,13 +83,15 @@ class CourseController extends Controller
         return response()->json(status: 204);
     }
 
-    public function publish(Course $course): JsonResponse
-    {
-        $this->authorize('publish', $course);
+   public function publish(Course $course): JsonResponse
+{
+    $this->authorize('publish', $course);
 
-        $course->status = 'published';
-        $course->save();
+    $course->status = 'published';
+    $course->save();
 
-        return response()->json($course);
-    }
+    CoursePublished::dispatch($course->refresh());
+
+    return response()->json($course);
+}
 }
