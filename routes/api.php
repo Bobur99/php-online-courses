@@ -5,6 +5,10 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\LessonController;
+use App\Http\Controllers\PurchaseController;
+use App\Http\Controllers\PaymentWebhookController;
+use App\Http\Controllers\LessonProgressController;
+use App\Http\Controllers\CertificateController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/register', [AuthController::class, 'register'])->name('register');
@@ -59,4 +63,29 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/courses/{course}/lessons', [LessonController::class, 'store']);
     Route::patch('/lessons/{lesson}', [LessonController::class, 'update']);
     Route::delete('/lessons/{lesson}', [LessonController::class, 'destroy']);
+});
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::post(
+        '/courses/{course}/purchase',
+        [PurchaseController::class, 'store']
+    );
+});
+Route::post(
+    '/webhooks/payment',
+    [PaymentWebhookController::class, 'handle']
+);
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::post(
+        '/lessons/{lesson}/complete',
+        [LessonProgressController::class, 'complete']
+    );
+});
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::get(
+        '/certificates/{certificate}/download',
+        [CertificateController::class, 'download']
+    );
 });

@@ -34,5 +34,24 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'payment_provider' => [
+        'url' => env('PAYMENT_PROVIDER_URL', 'http://payment-provider'),
+        'webhook_url' => env(
+            'PAYMENT_PROVIDER_WEBHOOK_URL',
+            'http://nginx/api/webhooks/payment'
+        ),
+    ],
+
+    'payment_provider' => [
+        'url' => env('PAYMENT_PROVIDER_URL', 'http://payment-provider'),
+        'webhook_url' => env(
+            'PAYMENT_PROVIDER_WEBHOOK_URL',
+            'http://nginx/api/webhooks/payment'
+        ),
+        'webhook_secret' => env(
+            'PAYMENT_PROVIDER_WEBHOOK_SECRET',
+            'change-me'
+        ),
+    ],
 
 ];
