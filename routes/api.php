@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CourseController;
+use App\Http\Controllers\LessonController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/register', [AuthController::class, 'register'])->name('register');
@@ -49,4 +50,13 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::patch('/courses/{course}', [CourseController::class, 'update']);
     Route::delete('/courses/{course}', [CourseController::class, 'destroy']);
     Route::post('/courses/{course}/publish', [CourseController::class, 'publish']);
+});
+
+
+Route::get('/courses/{course}/lessons', [LessonController::class, 'index']);
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::post('/courses/{course}/lessons', [LessonController::class, 'store']);
+    Route::patch('/lessons/{lesson}', [LessonController::class, 'update']);
+    Route::delete('/lessons/{lesson}', [LessonController::class, 'destroy']);
 });
