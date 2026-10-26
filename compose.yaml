@@ -26,5 +26,11 @@ services:
         volumes:
             - postgres_data:/var/lib/postgresql/data
 
+    payment-provider:
+        build:
+            context: ./services/payment-provider
+        expose:
+            - "8080"
+
 volumes:
     postgres_data:
