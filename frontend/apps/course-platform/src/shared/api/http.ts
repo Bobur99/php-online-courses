@@ -29,6 +29,7 @@ const fieldLabels: Record<string, string> = {
   order_number: 'Порядковый номер',
   content: 'Содержание урока',
   file: 'Учебный материал',
+  is_blocked: 'Статус блокировки',
   role: 'Роль',
 }
 
@@ -36,7 +37,7 @@ function fieldLabel(attribute?: string): string {
   return attribute ? (fieldLabels[attribute] ?? attribute) : 'это поле'
 }
 
-function translateValidationMessage(message: string): string {
+export function translateValidationMessage(message: string): string {
   let match = message.match(/^The (.+) field confirmation does not match\.$/i)
   if (match) return match[1] === 'password'
     ? 'Пароль и подтверждение пароля не совпадают.'
@@ -60,8 +61,20 @@ function translateValidationMessage(message: string): string {
   match = message.match(/^The selected (.+) is invalid\.$/i)
   if (match) return `Выберите корректное значение поля «${fieldLabel(match[1])}».`
 
+  match = message.match(/^The (.+) must be at least (\d+)\.$/i)
+  if (match) return `Значение поля «${fieldLabel(match[1])}» должно быть не менее ${match[2]}.`
+
+  match = message.match(/^The (.+) must be a string\.$/i)
+  if (match) return `Поле «${fieldLabel(match[1])}» должно быть текстовым.`
+
   match = message.match(/^The (.+) must be an integer\.$/i)
   if (match) return `Поле «${fieldLabel(match[1])}» должно содержать целое число.`
+
+  match = message.match(/^The (.+) field must be true or false\.$/i)
+  if (match) return `Укажите корректное значение для поля «${fieldLabel(match[1])}».`
+
+  match = message.match(/^The (.+) field must be a file of type: (.+)\.$/i)
+  if (match) return `Файл в поле «${fieldLabel(match[1])}» должен быть одного из форматов: ${match[2]}.`
 
   match = message.match(/^The (.+) must be a file\.$/i)
   if (match) return `Загрузите корректный файл в поле «${fieldLabel(match[1])}».`
