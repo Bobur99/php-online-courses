@@ -10,6 +10,33 @@ use Illuminate\Http\Request;
 
 class CourseController extends Controller
 {
+    public function adminIndex(): JsonResponse
+    {
+        $this->authorize('viewAny', Course::class);
+
+        return response()->json([
+            'data' => Course::query()
+                ->with(['category', 'author:id,name,email'])
+                ->withCount('lessons')
+                ->latest()
+                ->get(),
+        ]);
+    }
+
+    public function teacherIndex(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->role === 'teacher', 403);
+
+        return response()->json([
+            'data' => Course::query()
+                ->where('author_id', $request->user()->id)
+                ->with(['category', 'author:id,name,email'])
+                ->withCount('lessons')
+                ->latest()
+                ->get(),
+        ]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $query = Course::query()
@@ -47,6 +74,22 @@ class CourseController extends Controller
                 ->orderBy($sort, $direction)
                 ->orderBy('id', $direction)
                 ->get(),
+        ]);
+    }
+
+    public function show(Course $course): JsonResponse
+    {
+        abort_unless($course->status === 'published', 404);
+
+        $user = auth('sanctum')->user();
+        $isPurchased = $user?->purchases()
+            ->where('course_id', $course->id)
+            ->where('status', 'paid')
+            ->exists() ?? false;
+
+        return response()->json([
+            ...$course->load(['category', 'author:id,name,email'])->toArray(),
+            'is_purchased' => $isPurchased,
         ]);
     }
 
@@ -94,4 +137,14 @@ class CourseController extends Controller
 
     return response()->json($course);
 }
+
+    public function unpublish(Course $course): JsonResponse
+    {
+        $this->authorize('publish', $course);
+
+        $course->status = 'draft';
+        $course->save();
+
+        return response()->json($course->refresh());
+    }
 }

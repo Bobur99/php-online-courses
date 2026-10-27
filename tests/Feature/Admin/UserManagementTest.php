@@ -108,4 +108,18 @@ class UserManagementTest extends TestCase
             ])
             ->assertForbidden();
     }
+
+    public function test_admin_cannot_change_own_role_or_block_self(): void
+    {
+        $admin = $this->createAdmin();
+        $token = $admin->createToken('api-token');
+
+        $this->withToken($token->plainTextToken)
+            ->patchJson("/api/admin/users/{$admin->id}/role", ['role' => 'teacher'])
+            ->assertForbidden();
+
+        $this->withToken($token->plainTextToken)
+            ->patchJson("/api/admin/users/{$admin->id}/block", ['is_blocked' => true])
+            ->assertForbidden();
+    }
 }

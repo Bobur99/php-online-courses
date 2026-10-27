@@ -13,6 +13,6 @@ class UserPolicy
 
     public function update(User $user, User $model): bool
     {
-        return $user->role === 'admin';
+        return $user->role === 'admin' && $user->isNot($model);
     }
 }

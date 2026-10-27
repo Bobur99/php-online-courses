@@ -28,6 +28,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
 Route::middleware('auth:sanctum')
     ->prefix('admin')
     ->group(function (): void {
+        Route::get('/courses', [CourseController::class, 'adminIndex'])
+            ->name('admin.courses.index');
+
         Route::get('/users', [UserController::class, 'index'])
             ->name('admin.users.index');
 
@@ -37,6 +40,11 @@ Route::middleware('auth:sanctum')
         Route::patch('/users/{user}/block', [UserController::class, 'block'])
             ->name('admin.users.block');
     });
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::get('/teacher/courses', [CourseController::class, 'teacherIndex'])
+        ->name('teacher.courses.index');
+});
 
 Route::get('/categories', [CategoryController::class, 'index']);
 
@@ -48,12 +56,14 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
 
 Route::get('/courses', [CourseController::class, 'index']);
+Route::get('/courses/{course}', [CourseController::class, 'show']);
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/courses', [CourseController::class, 'store']);
     Route::patch('/courses/{course}', [CourseController::class, 'update']);
     Route::delete('/courses/{course}', [CourseController::class, 'destroy']);
     Route::post('/courses/{course}/publish', [CourseController::class, 'publish']);
+    Route::post('/courses/{course}/unpublish', [CourseController::class, 'unpublish']);
 });
 
 

@@ -6,6 +6,8 @@ services:
         working_dir: /var/www
         volumes:
             - .:/var/www
+        depends_on:
+            - payment-provider
 
     nginx:
         image: nginx:alpine
@@ -29,8 +31,12 @@ services:
     payment-provider:
         build:
             context: ./services/payment-provider
+        environment:
+            PAYMENT_CHECKOUT_URL: http://localhost:5174/pay
         expose:
             - "8080"
+        ports:
+            - "8080:8080"
 
 volumes:
     postgres_data:

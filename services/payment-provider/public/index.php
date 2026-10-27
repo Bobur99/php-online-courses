@@ -69,9 +69,11 @@ if ($method === 'POST' && $uri === '/payments') {
 
     savePayments($payments);
 
+    $checkoutBaseUrl = rtrim(getenv('PAYMENT_CHECKOUT_URL') ?: 'http://localhost:5174/pay', '/');
+
     jsonResponse([
         'operation_id' => $operationId,
-        'payment_url' => "https://payment.test/pay/{$operationId}",
+        'payment_url' => "{$checkoutBaseUrl}/{$operationId}",
     ], 201);
 }
 

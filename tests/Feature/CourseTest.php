@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Category;
 use App\Models\Course;
+use App\Models\Purchase;
 use App\Models\User;
 use App\Events\CoursePublished;
 use Illuminate\Support\Facades\Event;
@@ -153,6 +154,28 @@ class CourseTest extends TestCase
         ]);
     }
 
+    public function test_author_can_return_published_course_to_draft(): void
+    {
+        $teacher = $this->createUserWithRole('teacher');
+        $category = $this->createCategory();
+        $course = Course::create([
+            ...$this->courseData($category, $teacher),
+            'status' => 'published',
+        ]);
+        $token = $teacher->createToken('api-token');
+
+        $this
+            ->withToken($token->plainTextToken)
+            ->postJson("/api/courses/{$course->id}/unpublish")
+            ->assertOk()
+            ->assertJsonPath('status', 'draft');
+
+        $this->assertDatabaseHas('courses', [
+            'id' => $course->id,
+            'status' => 'draft',
+        ]);
+    }
+
     public function test_anyone_can_view_published_courses(): void
     {
         $teacher = $this->createUserWithRole('teacher');
@@ -167,5 +190,91 @@ class CourseTest extends TestCase
             ->getJson('/api/courses')
             ->assertOk()
             ->assertJsonCount(1, 'data');
+    }
+
+    public function test_anyone_can_view_published_course_details(): void
+    {
+        $teacher = $this->createUserWithRole('teacher');
+        $category = $this->createCategory();
+        $course = Course::create([
+            ...$this->courseData($category, $teacher),
+            'status' => 'published',
+        ]);
+
+        $this->getJson("/api/courses/{$course->id}")
+            ->assertOk()
+            ->assertJsonPath('id', $course->id);
+    }
+
+    public function test_purchased_course_details_mark_course_as_purchased(): void
+    {
+        $teacher = $this->createUserWithRole('teacher');
+        $student = $this->createUserWithRole('student');
+        $category = $this->createCategory();
+        $course = Course::create([
+            ...$this->courseData($category, $teacher),
+            'status' => 'published',
+        ]);
+
+        Purchase::create([
+            'student_id' => $student->id,
+            'course_id' => $course->id,
+            'amount' => $course->price,
+            'status' => 'paid',
+        ]);
+
+        $token = $student->createToken('api-token');
+
+        $this
+            ->withToken($token->plainTextToken)
+            ->getJson("/api/courses/{$course->id}")
+            ->assertOk()
+            ->assertJsonPath('is_purchased', true);
+    }
+
+    public function test_admin_can_view_all_courses_including_drafts(): void
+    {
+        $admin = $this->createUserWithRole('admin');
+        $teacher = $this->createUserWithRole('teacher');
+        $category = $this->createCategory();
+        Course::create($this->courseData($category, $teacher));
+        $token = $admin->createToken('api-token');
+
+        $this
+            ->withToken($token->plainTextToken)
+            ->getJson('/api/admin/courses')
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+    }
+
+    public function test_teacher_can_view_own_courses_for_course_management(): void
+    {
+        $teacher = $this->createUserWithRole('teacher');
+        $otherTeacher = $this->createUserWithRole('teacher');
+        $category = $this->createCategory();
+        Course::create($this->courseData($category, $teacher));
+        Course::create([
+            ...$this->courseData($category, $otherTeacher),
+            'title' => 'Foreign course',
+        ]);
+        $token = $teacher->createToken('api-token');
+
+        $this
+            ->withToken($token->plainTextToken)
+            ->getJson('/api/teacher/courses')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.title', 'Laravel API Course');
+    }
+
+    public function test_non_admin_cannot_view_admin_course_list(): void
+    {
+        $teacher = $this->createUserWithRole('teacher');
+        $token = $teacher->createToken('api-token');
+
+        $this
+            ->withToken($token->plainTextToken)
+            ->getJson('/api/admin/courses')
+            ->assertForbidden();
     }
 }

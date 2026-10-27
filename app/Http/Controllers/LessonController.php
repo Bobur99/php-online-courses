@@ -11,10 +11,31 @@ class LessonController extends Controller
 {
     public function index(Course $course): JsonResponse
     {
+        $user = auth('sanctum')->user();
+        $canAccessMaterials = $user !== null
+            && (
+                $user->role === 'admin'
+                || ($user->role === 'teacher' && $course->author_id === $user->id)
+                || $course->purchases()
+                    ->where('student_id', $user->id)
+                    ->where('status', 'paid')
+                    ->exists()
+            );
+
         return response()->json([
             'data' => $course->lessons()
                 ->orderBy('order_number')
-                ->get(),
+                ->get()
+                ->map(function (Lesson $lesson) use ($canAccessMaterials): array {
+                    $data = $lesson->toArray();
+                    $data['has_material'] = filled($lesson->file_path);
+
+                    if (! $canAccessMaterials) {
+                        $data['file_path'] = null;
+                    }
+
+                    return $data;
+                }),
         ]);
     }
 
@@ -24,10 +45,13 @@ class LessonController extends Controller
     ): JsonResponse {
         $this->authorize('update', $course);
 
-        $lesson = $course->lessons()->create([
-            ...$request->validated(),
-            'file_path' => null,
-        ]);
+        $data = $request->validated();
+        unset($data['file']);
+        $data['file_path'] = $request->hasFile('file')
+            ? $request->file('file')->store('lessons', 'public')
+            : null;
+
+        $lesson = $course->lessons()->create($data);
 
         return response()->json($lesson, 201);
     }

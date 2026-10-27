@@ -32,7 +32,13 @@ class LessonRequest extends FormRequest
                     ->where(fn ($query) => $query->where('course_id', $courseId))
                     ->ignore($this->route('lesson')),
             ],
-            'file' => ['sometimes', 'nullable', 'file', 'max:10240'],
+            'file' => [
+                'sometimes',
+                'nullable',
+                'file',
+                'mimes:mp4,webm,mov,pdf,doc,docx,ppt,pptx,jpg,jpeg,png,webp,gif',
+                'max:10240',
+            ],
         ];
     }
 }
