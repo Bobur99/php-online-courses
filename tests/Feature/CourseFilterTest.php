@@ -166,4 +166,19 @@ class CourseFilterTest extends TestCase
             ->assertJsonPath('data.0.id', $second->id)
             ->assertJsonPath('data.1.id', $first->id);
     }
+
+    public function test_courses_can_be_sorted_by_creation_date_oldest_first(): void
+    {
+        $teacher = $this->createTeacher();
+        $category = $this->createCategory('Backend');
+
+        $first = $this->createPublishedCourse('First Course', 100000, $category, $teacher);
+        $second = $this->createPublishedCourse('Second Course', 100000, $category, $teacher);
+
+        $this
+            ->getJson('/api/courses?sort=created_at&direction=asc')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $first->id)
+            ->assertJsonPath('data.1.id', $second->id);
+    }
 }

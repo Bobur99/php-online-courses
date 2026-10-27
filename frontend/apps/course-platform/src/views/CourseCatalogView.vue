@@ -102,7 +102,7 @@ onMounted(loadInitialData)
           { value: 'oldest', label: 'Сначала старые' },
           { value: 'price_asc', label: 'Сначала дешевле' },
           { value: 'price_desc', label: 'Сначала дороже' },
-        ]" />
+        ]" @update:model-value="loadCourses" />
         <AppButton type="submit" class="h-[42px] px-7">Найти</AppButton>
       </div>
       <button v-if="hasFilters" type="button" class="mt-3 text-sm font-semibold text-slate-500 transition hover:text-indigo-600" @click="resetFilters">Сбросить фильтры</button>
