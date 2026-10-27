@@ -8,6 +8,7 @@ use App\Models\Purchase;
 use App\Models\User;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\DB;
 
 class PurchaseService
 {
@@ -29,27 +30,40 @@ class PurchaseService
             ]);
         }
 
-        if (Purchase::where('student_id', $student->id)
+        $lastPurchase = Purchase::query()
+            ->where('student_id', $student->id)
             ->where('course_id', $course->id)
-            ->exists()
-        ) {
+            ->latest('id')
+            ->first();
+
+        if ($lastPurchase?->status === 'paid') {
             throw ValidationException::withMessages([
                 'course' => 'Course has already been purchased.',
             ]);
         }
 
-        $purchase = Purchase::create([
-            'student_id' => $student->id,
-            'course_id' => $course->id,
-            'amount' => $course->price,
-            'status' => 'pending',
-        ]);
+        if ($lastPurchase?->status === 'pending') {
+            throw ValidationException::withMessages([
+                'course' => 'There is already a payment awaiting confirmation.',
+            ]);
+        }
 
-        $payment = $this->paymentProvider->createPayment($purchase);
+        [$purchase, $payment] = DB::transaction(function () use ($student, $course): array {
+            $purchase = Purchase::create([
+                'student_id' => $student->id,
+                'course_id' => $course->id,
+                'amount' => $course->price,
+                'status' => 'pending',
+            ]);
 
-        $purchase->update([
-            'provider_operation_id' => $payment['operation_id'],
-        ]);
+            $payment = $this->paymentProvider->createPayment($purchase);
+
+            $purchase->update([
+                'provider_operation_id' => $payment['operation_id'],
+            ]);
+
+            return [$purchase, $payment];
+        });
 
         return [
             'purchase' => $purchase->refresh(),

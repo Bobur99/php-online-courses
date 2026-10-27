@@ -5,8 +5,11 @@ declare(strict_types=1);
 const STORAGE_FILE = __DIR__ . '/../storage/payments.json';
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: http://localhost:5174');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if (in_array($origin, ['http://localhost:5173', 'http://localhost:5174'], true)) {
+    header('Access-Control-Allow-Origin: ' . $origin);
+}
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -74,6 +77,8 @@ if ($method === 'POST' && $uri === '/payments') {
         'webhook_url' => $data['webhook_url'],
         'return_url' => $data['return_url'] ?? null,
         'status' => 'pending',
+        'created_at' => gmdate('c'),
+        'updated_at' => gmdate('c'),
     ];
 
     savePayments($payments);
@@ -98,6 +103,7 @@ function finalizePayment(string $operationId, string $status): never
 
     $payment = $payments[$operationId];
     $payment['status'] = $status;
+    $payment['updated_at'] = gmdate('c');
     $payments[$operationId] = $payment;
 
     savePayments($payments);
@@ -125,9 +131,18 @@ function finalizePayment(string $operationId, string $status): never
 
     $result = file_get_contents($payment['webhook_url'], false, $context);
 
-    if ($result === false) {
+    $responseStatus = 0;
+    $responseHeaders = function_exists('http_get_last_response_headers')
+        ? http_get_last_response_headers()
+        : [];
+    if (isset($responseHeaders[0]) && preg_match('/\s(\d{3})\s/', $responseHeaders[0], $statusMatch)) {
+        $responseStatus = (int) $statusMatch[1];
+    }
+
+    if ($result === false || $responseStatus < 200 || $responseStatus >= 300) {
         jsonResponse([
             'message' => 'Webhook delivery failed.',
+            'status' => $responseStatus ?: null,
         ], 502);
     }
 
@@ -139,6 +154,28 @@ function finalizePayment(string $operationId, string $status): never
             ? $payment['return_url'] . (str_contains($payment['return_url'], '?') ? '&' : '?') . 'payment=' . $status
             : null,
     ]);
+}
+
+if ($method === 'GET' && $uri === '/payments') {
+    $payments = array_values(readPayments());
+    usort($payments, static fn (array $left, array $right): int => strcmp(
+        (string) ($right['created_at'] ?? ''),
+        (string) ($left['created_at'] ?? '')
+    ));
+
+    jsonResponse([
+        'payments' => $payments,
+    ]);
+}
+
+if ($method === 'GET' && preg_match('#^/payments/([^/]+)$#', $uri, $matches)) {
+    $payments = readPayments();
+
+    if (! isset($payments[$matches[1]])) {
+        jsonResponse(['message' => 'Payment not found.'], 404);
+    }
+
+    jsonResponse(['payment' => $payments[$matches[1]]]);
 }
 
 if ($method === 'POST' && preg_match('#^/payments/([^/]+)/(complete|fail)$#', $uri, $matches)) {

@@ -88,6 +88,29 @@ class PurchaseTest extends TestCase
         Http::assertSent(fn ($request): bool => $request['return_url'] === "http://courses.test/courses/{$course->id}");
     }
 
+    public function test_student_can_check_purchase_status(): void
+    {
+        $student = $this->createStudent();
+        $teacher = $this->createTeacher();
+        $course = $this->createCourse($teacher);
+        $purchase = Purchase::create([
+            'student_id' => $student->id,
+            'course_id' => $course->id,
+            'amount' => $course->price,
+            'status' => 'pending',
+            'provider_operation_id' => 'operation-pending',
+        ]);
+
+        $token = $student->createToken('api-token');
+
+        $this->withToken($token->plainTextToken)
+            ->getJson("/api/courses/{$course->id}/purchase")
+            ->assertOk()
+            ->assertJsonPath('purchase.id', $purchase->id)
+            ->assertJsonPath('purchase.status', 'pending')
+            ->assertJsonPath('is_purchased', false);
+    }
+
     public function test_student_cannot_purchase_draft_course(): void
     {
         $student = $this->createStudent();
@@ -147,5 +170,44 @@ class PurchaseTest extends TestCase
             ->assertUnprocessable();
 
         $this->assertDatabaseCount('purchases', 1);
+    }
+
+    public function test_student_can_retry_after_failed_purchase_and_keeps_history(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'operation_id' => 'operation-retry',
+                'payment_url' => 'https://payment.test/pay/operation-retry',
+            ], 201),
+        ]);
+
+        $student = $this->createStudent();
+        $teacher = $this->createTeacher();
+        $course = $this->createCourse($teacher);
+
+        Purchase::create([
+            'student_id' => $student->id,
+            'course_id' => $course->id,
+            'amount' => $course->price,
+            'status' => 'failed',
+            'provider_operation_id' => 'operation-failed',
+        ]);
+
+        $token = $student->createToken('api-token');
+
+        $this->withToken($token->plainTextToken)
+            ->postJson("/api/courses/{$course->id}/purchase")
+            ->assertCreated()
+            ->assertJsonPath('purchase.provider_operation_id', 'operation-retry');
+
+        $this->assertDatabaseCount('purchases', 2);
+        $this->assertDatabaseHas('purchases', [
+            'provider_operation_id' => 'operation-failed',
+            'status' => 'failed',
+        ]);
+        $this->assertDatabaseHas('purchases', [
+            'provider_operation_id' => 'operation-retry',
+            'status' => 'pending',
+        ]);
     }
 }

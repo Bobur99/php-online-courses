@@ -77,6 +77,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
 });
 
 Route::middleware('auth:sanctum')->group(function (): void {
+    Route::get(
+        '/courses/{course}/purchase',
+        [PurchaseController::class, 'show']
+    );
     Route::post(
         '/courses/{course}/purchase',
         [PurchaseController::class, 'store']

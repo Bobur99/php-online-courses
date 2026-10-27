@@ -44,11 +44,13 @@ services:
         build:
             context: ./services/payment-provider
         environment:
-            PAYMENT_CHECKOUT_URL: http://localhost:5174/pay
+            PAYMENT_CHECKOUT_URL: http://localhost:5173/pay
         expose:
             - "8080"
         ports:
             - "8080:8080"
+        volumes:
+            - ./services/payment-provider/storage:/var/www/storage
 
 volumes:
     postgres_data:

@@ -1,12 +1,29 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppButton from '../components/ui/AppButton.vue'
 import { courseApi, type Course } from '../shared/api/courseApi'
 import { purchaseApi } from '../shared/api/purchaseApi'
 import { useAuthStore } from '../stores/auth'
 
-const route = useRoute(); const router = useRouter(); const auth = useAuthStore(); const course = ref<Course | null>(null); const loading = ref(true); const paying = ref(false); const error = ref('')
+const route = useRoute(); const router = useRouter(); const auth = useAuthStore(); const course = ref<Course | null>(null); const loading = ref(true); const paying = ref(false); const error = ref(''); const purchaseStatus = ref<'pending' | 'failed' | null>(null); let statusTimer: ReturnType<typeof setInterval> | undefined
+
+async function refreshPurchaseStatus() {
+  const courseId = Number(route.params.courseId)
+  const response = await purchaseApi.status(courseId)
+  if (!response.purchase) return
+  purchaseStatus.value = response.purchase.status === 'pending' || response.purchase.status === 'failed' ? response.purchase.status : null
+  if (response.is_purchased) {
+    purchaseStatus.value = null
+    if (course.value) course.value.is_purchased = true
+    if (statusTimer) clearInterval(statusTimer)
+  }
+}
+
+function startStatusPolling() {
+  if (statusTimer) clearInterval(statusTimer)
+  statusTimer = setInterval(() => { refreshPurchaseStatus().catch(() => undefined) }, 3000)
+}
 onMounted(async () => {
   if (!auth.isAuthenticated) {
     await router.replace({ path: '/login', query: { redirect: route.fullPath } })
@@ -19,13 +36,17 @@ onMounted(async () => {
       return
     }
     course.value = await courseApi.show(Number(route.params.courseId))
+    await refreshPurchaseStatus()
+    if (purchaseStatus.value === 'pending') startStatusPolling()
   } catch (exception) {
     error.value = exception instanceof Error ? exception.message : 'Не удалось загрузить оформление заказа.'
   } finally {
     loading.value = false
   }
 })
-async function startPayment() { if (!course.value) return; paying.value = true; error.value = ''; try { const response = await purchaseApi.create(course.value.id); window.location.href = response.payment_url } catch (exception) { error.value = exception instanceof Error ? exception.message : 'Не удалось начать оплату.'; paying.value = false } }
+async function startPayment() { if (!course.value) return; paying.value = true; error.value = ''; try { await purchaseApi.create(course.value.id); purchaseStatus.value = 'pending'; startStatusPolling() } catch (exception) { error.value = exception instanceof Error ? exception.message : 'Не удалось начать оплату.' } finally { paying.value = false } }
+
+onBeforeUnmount(() => { if (statusTimer) clearInterval(statusTimer) })
 </script>
 
 <template>
@@ -47,6 +68,13 @@ async function startPayment() { if (!course.value) return; paying.value = true; 
         <template v-if="course.is_purchased">
           <div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-center"><p class="font-semibold text-emerald-800">Курс уже приобретён</p><p class="mt-1 text-sm text-emerald-700">Материалы доступны на странице курса.</p></div>
           <RouterLink :to="`/courses/${course.id}`" class="mt-4 flex h-11 items-center justify-center rounded-xl bg-indigo-600 text-sm font-semibold text-white">Перейти к обучению</RouterLink>
+        </template>
+        <template v-else-if="purchaseStatus === 'pending'">
+          <div class="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-6 text-center"><p class="font-semibold text-amber-900">Платёж ожидает подтверждения</p></div>
+        </template>
+        <template v-else-if="purchaseStatus === 'failed'">
+          <div class="rounded-2xl border border-red-100 bg-red-50 p-5 text-center"><p class="font-semibold text-red-800">Платёж не завершён</p><p class="mt-1 text-sm text-red-700">Операция была отклонена платёжным провайдером.</p></div>
+          <AppButton class="mt-4 w-full" :disabled="paying" @click="startPayment">{{ paying ? 'Повторяем оплату…' : 'Повторить оплату' }}</AppButton>
         </template>
         <template v-else>
           <AppButton class="w-full" :disabled="paying" @click="startPayment">{{ paying ? 'Переходим к оплате…' : 'Перейти к безопасной оплате' }}</AppButton>
