@@ -80,7 +80,7 @@ async function toggleBlock(user: User) {
                       {{ roleLabel(user.role) }}
                       <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 text-slate-400"><path fill-rule="evenodd" d="M5.2 7.5a.75.75 0 1 1 1.06.02L10 11.4l3.74-3.88a.75.75 0 1 1 1.08 1.04l-4.28 4.44a.75.75 0 0 1-1.08 0L5.18 8.56a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" /></svg>
                     </button>
-                    <div v-if="openRoleId === user.id" class="absolute bottom-full z-20 mb-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+                    <div v-if="openRoleId === user.id" class="absolute top-full z-20 mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
                       <button v-for="role in (['student', 'teacher', 'admin'] as User['role'][] )" :key="role" type="button" class="block w-full rounded-lg px-3 py-2 text-left text-sm transition hover:bg-indigo-50 hover:text-indigo-700" :class="user.role === role ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-slate-700'" @click="changeRole(user, role)">{{ roleLabel(role) }}</button>
                     </div>
                   </div>
