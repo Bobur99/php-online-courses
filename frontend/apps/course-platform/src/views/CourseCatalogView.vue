@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import AppButton from '../components/ui/AppButton.vue'
 import AppInput from '../components/ui/AppInput.vue'
+import AppSelect from '../components/ui/AppSelect.vue'
 import { courseApi, type Category, type Course, type CourseFilters } from '../shared/api/courseApi'
 
 const courses = ref<Course[]>([])
@@ -94,26 +95,14 @@ onMounted(loadInitialData)
     <form class="mt-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" @submit.prevent="loadCourses">
       <div class="grid gap-3 lg:grid-cols-[minmax(240px,1.5fr)_1fr_1fr_1fr_auto] lg:items-end">
         <AppInput v-model="search" label="Поиск" placeholder="Название курса" />
-        <label class="text-sm font-medium text-slate-700">Категория
-          <select v-model="categoryId" class="mt-2 h-[42px] w-full rounded-lg border border-slate-300 bg-white px-3 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
-            <option value="">Все категории</option>
-            <option v-for="category in categories" :key="category.id" :value="String(category.id)">{{ category.name }}</option>
-          </select>
-        </label>
-        <label class="text-sm font-medium text-slate-700">Преподаватель
-          <select v-model="teacherId" class="mt-2 h-[42px] w-full rounded-lg border border-slate-300 bg-white px-3 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
-            <option value="">Все преподаватели</option>
-            <option v-for="teacher in teachers" :key="teacher.id" :value="String(teacher.id)">{{ teacher.name }}</option>
-          </select>
-        </label>
-        <label class="text-sm font-medium text-slate-700">Сортировка
-          <select v-model="sortValue" class="mt-2 h-[42px] w-full rounded-lg border border-slate-300 bg-white px-3 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
-            <option value="newest">Сначала новые</option>
-            <option value="oldest">Сначала старые</option>
-            <option value="price_asc">Сначала дешевле</option>
-            <option value="price_desc">Сначала дороже</option>
-          </select>
-        </label>
+        <AppSelect v-model="categoryId" label="Категория" :options="[{ value: '', label: 'Все категории' }, ...categories.map((category) => ({ value: String(category.id), label: category.name }))]" />
+        <AppSelect v-model="teacherId" label="Преподаватель" :options="[{ value: '', label: 'Все преподаватели' }, ...teachers.map((teacher) => ({ value: String(teacher.id), label: teacher.name }))]" />
+        <AppSelect v-model="sortValue" label="Сортировка" :options="[
+          { value: 'newest', label: 'Сначала новые' },
+          { value: 'oldest', label: 'Сначала старые' },
+          { value: 'price_asc', label: 'Сначала дешевле' },
+          { value: 'price_desc', label: 'Сначала дороже' },
+        ]" />
         <AppButton type="submit" class="h-[42px] px-7">Найти</AppButton>
       </div>
       <button v-if="hasFilters" type="button" class="mt-3 text-sm font-semibold text-slate-500 transition hover:text-indigo-600" @click="resetFilters">Сбросить фильтры</button>
