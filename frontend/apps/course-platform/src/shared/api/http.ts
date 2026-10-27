@@ -4,6 +4,10 @@ type ApiError = { message?: string; errors?: Record<string, string[]> }
 
 const translatedMessages: Record<string, string> = {
   'Request failed': 'Не удалось выполнить запрос.',
+  'The given data was invalid.': 'Проверьте правильность заполнения формы.',
+  'Unauthenticated.': 'Срок действия сессии истёк. Войдите в аккаунт снова.',
+  'This action is unauthorized.': 'У вас нет прав для выполнения этого действия.',
+  'Not Found': 'Запрошенная страница или ресурс не найдены.',
   'Invalid credentials.': 'Неверная электронная почта или пароль.',
   'User is blocked.': 'Ваш аккаунт заблокирован. Обратитесь к администратору.',
   'Current password is incorrect.': 'Текущий пароль указан неверно.',
@@ -12,10 +16,66 @@ const translatedMessages: Record<string, string> = {
   'Payment provider request failed.': 'Платёжный сервис временно недоступен. Попробуйте ещё раз.',
 }
 
+const fieldLabels: Record<string, string> = {
+  name: 'Имя',
+  email: 'Электронная почта',
+  password: 'Пароль',
+  current_password: 'Текущий пароль',
+  password_confirmation: 'Подтверждение пароля',
+  title: 'Название курса',
+  description: 'Описание',
+  price: 'Стоимость',
+  category_id: 'Категория',
+  order_number: 'Порядковый номер',
+  content: 'Содержание урока',
+  file: 'Учебный материал',
+  role: 'Роль',
+}
+
+function fieldLabel(attribute?: string): string {
+  return attribute ? (fieldLabels[attribute] ?? attribute) : 'это поле'
+}
+
+function translateValidationMessage(message: string): string {
+  let match = message.match(/^The (.+) field confirmation does not match\.$/i)
+  if (match) return match[1] === 'password'
+    ? 'Пароль и подтверждение пароля не совпадают.'
+    : `Поле «${fieldLabel(match[1])}» не совпадает с подтверждением.`
+
+  match = message.match(/^The (.+) field is required\.$/i)
+  if (match) return `Заполните поле «${fieldLabel(match[1])}».`
+
+  match = message.match(/^The (.+) has already been taken\.$/i)
+  if (match) return `Значение поля «${fieldLabel(match[1])}» уже используется.`
+
+  match = message.match(/^The (.+) must be at least (\d+) characters\.$/i)
+  if (match) return `Поле «${fieldLabel(match[1])}» должно содержать не менее ${match[2]} символов.`
+
+  match = message.match(/^The (.+) may not be greater than (\d+) characters\.$/i)
+  if (match) return `Поле «${fieldLabel(match[1])}» должно содержать не более ${match[2]} символов.`
+
+  match = message.match(/^The (.+) field must be a valid email address\.$/i)
+  if (match) return `Введите корректный адрес электронной почты.`
+
+  match = message.match(/^The selected (.+) is invalid\.$/i)
+  if (match) return `Выберите корректное значение поля «${fieldLabel(match[1])}».`
+
+  match = message.match(/^The (.+) must be an integer\.$/i)
+  if (match) return `Поле «${fieldLabel(match[1])}» должно содержать целое число.`
+
+  match = message.match(/^The (.+) must be a file\.$/i)
+  if (match) return `Загрузите корректный файл в поле «${fieldLabel(match[1])}».`
+
+  match = message.match(/^The (.+) may not be greater than (\d+) kilobytes\.$/i)
+  if (match) return `Размер файла в поле «${fieldLabel(match[1])}» не должен превышать ${match[2]} КБ.`
+
+  return translatedMessages[message] ?? 'Не удалось выполнить запрос. Попробуйте ещё раз.'
+}
+
 function errorMessage(payload: ApiError): string {
   const validationMessage = payload.errors ? Object.values(payload.errors).flat()[0] : undefined
   const message = validationMessage ?? payload.message ?? 'Request failed'
-  return translatedMessages[message] ?? message
+  return translateValidationMessage(message)
 }
 
 export class HttpError extends Error {
