@@ -44,6 +44,7 @@ return [
             'PAYMENT_PROVIDER_WEBHOOK_SECRET',
             'change-me'
         ),
+        'return_url' => rtrim(env('COURSE_PLATFORM_URL', 'http://localhost:5173'), '/'),
     ],
 
 ];

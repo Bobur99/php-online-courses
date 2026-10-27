@@ -1,16 +1,36 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import AppButton from '../components/ui/AppButton.vue'
 import { courseApi, type Course, type Lesson } from '../shared/api/courseApi'
 import { useAuthStore } from '../stores/auth'
+import { studentApi } from '../shared/api/studentApi'
 
 const route = useRoute(); const auth = useAuthStore(); const course = ref<Course | null>(null); const lessons = ref<Lesson[]>([]); const loading = ref(true); const error = ref('')
+const actionError = ref('')
+const completingLessonId = ref<number | null>(null)
+const completedLessons = computed(() => lessons.value.filter((lesson) => lesson.is_completed).length)
+const progressPercentage = computed(() => lessons.value.length ? Math.round((completedLessons.value / lessons.value.length) * 100) : 0)
+const canTrackProgress = computed(() => auth.user?.role === 'student' && Boolean(course.value?.is_purchased))
 const materialUrl = (path: string) => `/storage/${path}`
 const fileName = (path: string) => path.split('/').pop() ?? 'Материал курса'
 const isImageFile = (path: string) => /\.(avif|gif|jpe?g|png|webp)$/i.test(path)
 const isVideoFile = (path: string) => /\.(mp4|mov|webm)$/i.test(path)
 onMounted(async () => { try { if (auth.isAuthenticated && !auth.user) await auth.loadProfile(); const id = Number(route.params.id); const [courseResponse, lessonResponse] = await Promise.all([courseApi.show(id), courseApi.lessons(id)]); course.value = courseResponse; lessons.value = lessonResponse.data } catch (exception) { error.value = exception instanceof Error ? exception.message : 'Не удалось загрузить курс.' } finally { loading.value = false } })
+
+async function completeLesson(lesson: Lesson) {
+  if (lesson.is_completed) return
+  completingLessonId.value = lesson.id
+  actionError.value = ''
+  try {
+    await studentApi.completeLesson(lesson.id)
+    lesson.is_completed = true
+  } catch (exception) {
+    actionError.value = exception instanceof Error ? exception.message : 'Не удалось отметить урок пройденным.'
+  } finally {
+    completingLessonId.value = null
+  }
+}
 </script>
 
 <template>
@@ -22,6 +42,10 @@ onMounted(async () => { try { if (auth.isAuthenticated && !auth.user) await auth
       {{ error }}
     </div>
     <template v-else-if="course">
+      <div v-if="route.query.payment === 'success'" class="mb-6 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm font-medium text-emerald-800">
+        <span class="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white">✓</span>
+        Оплата подтверждена. Курс доступен для обучения.
+      </div>
       <div class="overflow-hidden rounded-3xl border border-indigo-100 bg-indigo-50 text-slate-900 shadow-xl shadow-indigo-100/70">
         <div class="max-w-3xl p-8 sm:p-12">
           <span class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm">
@@ -52,6 +76,13 @@ onMounted(async () => { try { if (auth.isAuthenticated && !auth.user) await auth
           <span class="rounded-full bg-indigo-50 px-3 py-1 text-sm font-semibold text-indigo-700">{{ lessons.length }} уроков</span>
         </div>
 
+        <div v-if="canTrackProgress && lessons.length" class="mt-6 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-5">
+          <div class="flex items-center justify-between gap-4"><div><p class="font-semibold text-slate-900">Ваш прогресс</p><p class="mt-1 text-sm text-slate-500">Пройдено {{ completedLessons }} из {{ lessons.length }} уроков</p></div><span class="text-xl font-bold text-indigo-700">{{ progressPercentage }}%</span></div>
+          <div class="mt-4 h-2 overflow-hidden rounded-full bg-white"><div class="h-full rounded-full bg-indigo-600 transition-all" :style="{ width: `${progressPercentage}%` }"></div></div>
+          <p v-if="progressPercentage === 100" class="mt-3 text-sm font-semibold text-emerald-700">Курс завершён. Сертификат появится в личном кабинете после формирования.</p>
+        </div>
+        <div v-if="actionError" class="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{{ actionError }}</div>
+
         <div v-if="lessons.length" class="mt-6 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div v-for="lesson in lessons" :key="lesson.id" class="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:gap-8">
             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-sm font-bold text-indigo-600">{{ lesson.order_number ?? lesson.order }}</span>
@@ -59,6 +90,10 @@ onMounted(async () => { try { if (auth.isAuthenticated && !auth.user) await auth
               <h3 class="font-semibold text-slate-900">{{ lesson.title }}</h3>
               <p v-if="lesson.content || lesson.description" class="mt-1 text-sm leading-6 text-slate-500">{{ lesson.content ?? lesson.description }}</p>
             </div>
+            <button v-if="canTrackProgress" type="button" :disabled="lesson.is_completed || completingLessonId === lesson.id" class="flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition" :class="lesson.is_completed ? 'bg-emerald-50 text-emerald-700' : 'border border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700'" @click="completeLesson(lesson)">
+              <span class="flex h-5 w-5 items-center justify-center rounded-full border" :class="lesson.is_completed ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300'">{{ lesson.is_completed ? '✓' : '' }}</span>
+              {{ lesson.is_completed ? 'Пройдено' : completingLessonId === lesson.id ? 'Сохраняем…' : 'Завершить урок' }}
+            </button>
             <div v-if="lesson.file_path" class="flex w-full shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1.5 lg:w-[280px]">
               <div v-if="isImageFile(lesson.file_path)" class="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-white ring-1 ring-slate-200">
                 <img :src="materialUrl(lesson.file_path)" :alt="fileName(lesson.file_path)" class="h-full w-full object-cover" />

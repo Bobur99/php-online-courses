@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\CoursePublished;
 use App\Http\Requests\CourseRequest;
 use App\Models\Course;
-use App\Events\CoursePublished;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -37,6 +37,48 @@ class CourseController extends Controller
         ]);
     }
 
+    public function studentIndex(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->role === 'student', 403);
+
+        $studentId = $request->user()->id;
+
+        $courses = Course::query()
+            ->whereHas('purchases', function ($query) use ($studentId): void {
+                $query
+                    ->where('student_id', $studentId)
+                    ->where('status', 'paid');
+            })
+            ->with(['category', 'author:id,name'])
+            ->withCount('lessons')
+            ->withCount([
+                'lessons as completed_lessons_count' => function ($query) use ($studentId): void {
+                    $query->whereHas('progress', function ($progressQuery) use ($studentId): void {
+                        $progressQuery
+                            ->where('student_id', $studentId)
+                            ->where('is_completed', true);
+                    });
+                },
+            ])
+            ->latest()
+            ->get()
+            ->map(function (Course $course): array {
+                $totalLessons = (int) $course->lessons_count;
+                $completedLessons = (int) $course->completed_lessons_count;
+                $percentage = $totalLessons > 0
+                    ? (int) round(($completedLessons / $totalLessons) * 100)
+                    : 0;
+
+                return [
+                    ...$course->toArray(),
+                    'progress_percentage' => $percentage,
+                    'is_completed' => $totalLessons > 0 && $completedLessons === $totalLessons,
+                ];
+            });
+
+        return response()->json(['data' => $courses]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $query = Course::query()
@@ -45,7 +87,7 @@ class CourseController extends Controller
         if ($request->filled('search')) {
             $search = $request->string('search')->toString();
 
-            $query->where('title', 'ilike', '%' . $search . '%');
+            $query->where('title', 'ilike', '%'.$search.'%');
         }
 
         if ($request->filled('category_id')) {
@@ -71,6 +113,7 @@ class CourseController extends Controller
 
         return response()->json([
             'data' => $query
+                ->with(['category:id,name', 'author:id,name'])
                 ->orderBy($sort, $direction)
                 ->orderBy('id', $direction)
                 ->get(),
@@ -126,17 +169,17 @@ class CourseController extends Controller
         return response()->json(status: 204);
     }
 
-   public function publish(Course $course): JsonResponse
-{
-    $this->authorize('publish', $course);
+    public function publish(Course $course): JsonResponse
+    {
+        $this->authorize('publish', $course);
 
-    $course->status = 'published';
-    $course->save();
+        $course->status = 'published';
+        $course->save();
 
-    CoursePublished::dispatch($course->refresh());
+        CoursePublished::dispatch($course->refresh());
 
-    return response()->json($course);
-}
+        return response()->json($course);
+    }
 
     public function unpublish(Course $course): JsonResponse
     {

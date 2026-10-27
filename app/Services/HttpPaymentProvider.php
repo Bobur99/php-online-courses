@@ -18,6 +18,8 @@ class HttpPaymentProvider implements PaymentProviderInterface
                 'currency' => 'UZS',
                 'description' => $purchase->course->title,
                 'webhook_url' => config('services.payment_provider.webhook_url'),
+                'return_url' => config('services.payment_provider.return_url')
+                    ."/courses/{$purchase->course_id}?payment=success",
             ]
         );
 

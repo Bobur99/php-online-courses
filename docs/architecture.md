@@ -288,6 +288,16 @@ payment implementation and tested.
 Do not add certificate fields or lifecycle states unless required by the
 specification or necessary for correct implementation.
 
+### Student-facing API projections
+
+-   `GET /api/student/courses` returns only the authenticated student's
+    paid courses and derives lesson totals, completed lesson totals, and
+    progress percentage from the existing course and progress records.
+-   `GET /api/certificates` returns only the authenticated student's
+    certificates with course metadata and an authorized download URL.
+-   Lesson listing includes the authenticated student's completion flag;
+    it does not create a separate progress state or duplicate stored data.
+
 ------------------------------------------------------------------------
 
 ## 10. Events, listeners, and queues

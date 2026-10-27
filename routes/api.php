@@ -3,12 +3,12 @@
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CertificateController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\LessonController;
-use App\Http\Controllers\PurchaseController;
-use App\Http\Controllers\PaymentWebhookController;
 use App\Http\Controllers\LessonProgressController;
-use App\Http\Controllers\CertificateController;
+use App\Http\Controllers\PaymentWebhookController;
+use App\Http\Controllers\PurchaseController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/register', [AuthController::class, 'register'])->name('register');
@@ -44,6 +44,9 @@ Route::middleware('auth:sanctum')
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/teacher/courses', [CourseController::class, 'teacherIndex'])
         ->name('teacher.courses.index');
+
+    Route::get('/student/courses', [CourseController::class, 'studentIndex'])
+        ->name('student.courses.index');
 });
 
 Route::get('/categories', [CategoryController::class, 'index']);
@@ -53,7 +56,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::patch('/categories/{category}', [CategoryController::class, 'update']);
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
 });
-
 
 Route::get('/courses', [CourseController::class, 'index']);
 Route::get('/courses/{course}', [CourseController::class, 'show']);
@@ -65,7 +67,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/courses/{course}/publish', [CourseController::class, 'publish']);
     Route::post('/courses/{course}/unpublish', [CourseController::class, 'unpublish']);
 });
-
 
 Route::get('/courses/{course}/lessons', [LessonController::class, 'index']);
 
@@ -94,6 +95,11 @@ Route::middleware('auth:sanctum')->group(function (): void {
 });
 
 Route::middleware('auth:sanctum')->group(function (): void {
+    Route::get(
+        '/certificates',
+        [CertificateController::class, 'index']
+    );
+
     Route::get(
         '/certificates/{certificate}/download',
         [CertificateController::class, 'download']

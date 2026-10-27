@@ -19,5 +19,7 @@ export const authApi = {
   profile: () => request<User>('/profile'),
   updateProfile: (payload: { name: string; email: string }) =>
     request<User>('/profile', { method: 'PATCH', body: JSON.stringify(payload) }),
+  changePassword: (payload: { current_password: string; password: string; password_confirmation: string }) =>
+    request<{ message: string }>('/profile/password', { method: 'PATCH', body: JSON.stringify(payload) }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
 }

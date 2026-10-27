@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\LessonRequest;
 use App\Models\Course;
 use App\Models\Lesson;
+use App\Models\LessonProgress;
 use Illuminate\Http\JsonResponse;
 
 class LessonController extends Controller
@@ -12,6 +13,14 @@ class LessonController extends Controller
     public function index(Course $course): JsonResponse
     {
         $user = auth('sanctum')->user();
+        $completedLessonIds = $user?->role === 'student'
+            ? LessonProgress::query()
+                ->where('student_id', $user->id)
+                ->where('is_completed', true)
+                ->whereHas('lesson', fn ($query) => $query->where('course_id', $course->id))
+                ->pluck('lesson_id')
+                ->all()
+            : [];
         $canAccessMaterials = $user !== null
             && (
                 $user->role === 'admin'
@@ -26,9 +35,10 @@ class LessonController extends Controller
             'data' => $course->lessons()
                 ->orderBy('order_number')
                 ->get()
-                ->map(function (Lesson $lesson) use ($canAccessMaterials): array {
+                ->map(function (Lesson $lesson) use ($canAccessMaterials, $completedLessonIds): array {
                     $data = $lesson->toArray();
                     $data['has_material'] = filled($lesson->file_path);
+                    $data['is_completed'] = in_array($lesson->id, $completedLessonIds, true);
 
                     if (! $canAccessMaterials) {
                         $data['file_path'] = null;

@@ -9,6 +9,18 @@ services:
         depends_on:
             - payment-provider
 
+    queue:
+        build:
+            context: .
+            dockerfile: docker/php/Dockerfile
+        working_dir: /var/www
+        command: php artisan queue:work --sleep=1 --tries=3 --timeout=120
+        volumes:
+            - .:/var/www
+        depends_on:
+            - database
+            - payment-provider
+
     nginx:
         image: nginx:alpine
         ports:

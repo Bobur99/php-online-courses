@@ -64,6 +64,7 @@ if ($method === 'POST' && $uri === '/payments') {
         'currency' => $data['currency'],
         'description' => $data['description'],
         'webhook_url' => $data['webhook_url'],
+        'return_url' => $data['return_url'] ?? null,
         'status' => 'pending',
     ];
 
@@ -126,6 +127,7 @@ if ($method === 'POST' && preg_match('#^/payments/([^/]+)/complete$#', $uri, $ma
         'message' => 'Payment completed.',
         'operation_id' => $operationId,
         'status' => 'success',
+        'return_url' => $payment['return_url'],
     ]);
 }
 

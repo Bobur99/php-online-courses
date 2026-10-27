@@ -54,6 +54,8 @@ class PurchaseTest extends TestCase
 
     public function test_student_can_purchase_published_course(): void
     {
+        config(['services.payment_provider.return_url' => 'http://courses.test']);
+
         Http::fake([
             '*' => Http::response([
                 'operation_id' => 'operation-123',
@@ -82,6 +84,8 @@ class PurchaseTest extends TestCase
             'status' => 'pending',
             'provider_operation_id' => 'operation-123',
         ]);
+
+        Http::assertSent(fn ($request): bool => $request['return_url'] === "http://courses.test/courses/{$course->id}?payment=success");
     }
 
     public function test_student_cannot_purchase_draft_course(): void

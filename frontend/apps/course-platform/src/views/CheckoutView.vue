@@ -7,7 +7,24 @@ import { purchaseApi } from '../shared/api/purchaseApi'
 import { useAuthStore } from '../stores/auth'
 
 const route = useRoute(); const router = useRouter(); const auth = useAuthStore(); const course = ref<Course | null>(null); const loading = ref(true); const paying = ref(false); const error = ref('')
-onMounted(async () => { if (!auth.isAuthenticated) { await router.replace('/login'); return } try { course.value = await courseApi.show(Number(route.params.courseId)) } catch (exception) { error.value = exception instanceof Error ? exception.message : 'Не удалось загрузить оформление заказа.' } finally { loading.value = false } })
+onMounted(async () => {
+  if (!auth.isAuthenticated) {
+    await router.replace({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  try {
+    if (!auth.user) await auth.loadProfile()
+    if (auth.user?.role !== 'student') {
+      await router.replace(`/courses/${route.params.courseId}`)
+      return
+    }
+    course.value = await courseApi.show(Number(route.params.courseId))
+  } catch (exception) {
+    error.value = exception instanceof Error ? exception.message : 'Не удалось загрузить оформление заказа.'
+  } finally {
+    loading.value = false
+  }
+})
 async function startPayment() { if (!course.value) return; paying.value = true; error.value = ''; try { const response = await purchaseApi.create(course.value.id); window.location.href = response.payment_url } catch (exception) { error.value = exception instanceof Error ? exception.message : 'Не удалось начать оплату.'; paying.value = false } }
 </script>
 
@@ -27,8 +44,14 @@ async function startPayment() { if (!course.value) return; paying.value = true; 
           <div class="min-w-0"><h2 class="text-xl font-bold">{{ course.title }}</h2><p class="mt-2 text-sm leading-6 text-slate-500">{{ course.description }}</p></div>
         </div>
         <div class="my-8 flex items-center justify-between border-y border-slate-200 py-5"><span class="text-sm font-medium text-slate-500">Итого к оплате</span><span class="text-2xl font-bold text-slate-900">{{ course.price.toLocaleString() }} UZS</span></div>
-        <AppButton class="w-full" :disabled="paying" @click="startPayment">{{ paying ? 'Переходим к оплате…' : 'Перейти к безопасной оплате' }}</AppButton>
-        <p class="mt-4 text-center text-xs text-slate-500">Вы будете перенаправлены на защищённую страницу платёжного провайдера.</p>
+        <template v-if="course.is_purchased">
+          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-center"><p class="font-semibold text-emerald-800">Курс уже приобретён</p><p class="mt-1 text-sm text-emerald-700">Материалы доступны на странице курса.</p></div>
+          <RouterLink :to="`/courses/${course.id}`" class="mt-4 flex h-11 items-center justify-center rounded-xl bg-indigo-600 text-sm font-semibold text-white">Перейти к обучению</RouterLink>
+        </template>
+        <template v-else>
+          <AppButton class="w-full" :disabled="paying" @click="startPayment">{{ paying ? 'Переходим к оплате…' : 'Перейти к безопасной оплате' }}</AppButton>
+          <p class="mt-4 text-center text-xs text-slate-500">Вы будете перенаправлены на защищённую страницу платёжного провайдера.</p>
+        </template>
       </div>
     </div>
   </section>
