@@ -85,7 +85,7 @@ class PurchaseTest extends TestCase
             'provider_operation_id' => 'operation-123',
         ]);
 
-        Http::assertSent(fn ($request): bool => $request['return_url'] === "http://courses.test/courses/{$course->id}?payment=success");
+        Http::assertSent(fn ($request): bool => $request['return_url'] === "http://courses.test/courses/{$course->id}");
     }
 
     public function test_student_cannot_purchase_draft_course(): void

@@ -5,6 +5,14 @@ declare(strict_types=1);
 const STORAGE_FILE = __DIR__ . '/../storage/payments.json';
 
 header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: http://localhost:5174');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
 
 function jsonResponse(array $data, int $status = 200): never
 {
@@ -78,8 +86,8 @@ if ($method === 'POST' && $uri === '/payments') {
     ], 201);
 }
 
-if ($method === 'POST' && preg_match('#^/payments/([^/]+)/complete$#', $uri, $matches)) {
-    $operationId = $matches[1];
+function finalizePayment(string $operationId, string $status): never
+{
     $payments = readPayments();
 
     if (! isset($payments[$operationId])) {
@@ -89,14 +97,14 @@ if ($method === 'POST' && preg_match('#^/payments/([^/]+)/complete$#', $uri, $ma
     }
 
     $payment = $payments[$operationId];
-    $payment['status'] = 'success';
+    $payment['status'] = $status;
     $payments[$operationId] = $payment;
 
     savePayments($payments);
 
     $payload = json_encode([
         'operation_id' => $operationId,
-        'status' => 'success',
+        'status' => $status,
     ], JSON_UNESCAPED_UNICODE);
 
     $secret = getenv('PAYMENT_PROVIDER_WEBHOOK_SECRET') ?: 'test-secret';
@@ -126,9 +134,15 @@ if ($method === 'POST' && preg_match('#^/payments/([^/]+)/complete$#', $uri, $ma
     jsonResponse([
         'message' => 'Payment completed.',
         'operation_id' => $operationId,
-        'status' => 'success',
-        'return_url' => $payment['return_url'],
+        'status' => $status,
+        'return_url' => $payment['return_url']
+            ? $payment['return_url'] . (str_contains($payment['return_url'], '?') ? '&' : '?') . 'payment=' . $status
+            : null,
     ]);
+}
+
+if ($method === 'POST' && preg_match('#^/payments/([^/]+)/(complete|fail)$#', $uri, $matches)) {
+    finalizePayment($matches[1], $matches[2] === 'complete' ? 'success' : 'failed');
 }
 
 jsonResponse([

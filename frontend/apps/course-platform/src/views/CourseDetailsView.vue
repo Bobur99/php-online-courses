@@ -46,6 +46,10 @@ async function completeLesson(lesson: Lesson) {
         <span class="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white">✓</span>
         Оплата подтверждена. Курс доступен для обучения.
       </div>
+      <div v-else-if="route.query.payment === 'failed'" class="mb-6 flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-medium text-red-800">
+        <span class="flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white">!</span>
+        Оплата отклонена. Курс не был приобретён.
+      </div>
       <div class="overflow-hidden rounded-3xl border border-indigo-100 bg-indigo-50 text-slate-900 shadow-xl shadow-indigo-100/70">
         <div class="max-w-3xl p-8 sm:p-12">
           <span class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm">

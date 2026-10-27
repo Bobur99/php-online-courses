@@ -19,7 +19,7 @@ class HttpPaymentProvider implements PaymentProviderInterface
                 'description' => $purchase->course->title,
                 'webhook_url' => config('services.payment_provider.webhook_url'),
                 'return_url' => config('services.payment_provider.return_url')
-                    ."/courses/{$purchase->course_id}?payment=success",
+                    ."/courses/{$purchase->course_id}",
             ]
         );
 

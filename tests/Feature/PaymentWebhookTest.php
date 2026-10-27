@@ -80,6 +80,29 @@ class PaymentWebhookTest extends TestCase
         ]);
     }
 
+    public function test_valid_failed_webhook_marks_purchase_as_failed(): void
+    {
+        config([
+            'services.payment_provider.webhook_secret' => 'test-secret',
+        ]);
+
+        $purchase = $this->createPurchase();
+        $payload = [
+            'operation_id' => 'operation-123',
+            'status' => 'failed',
+        ];
+
+        $this
+            ->withHeader('X-Payment-Signature', $this->signature($payload))
+            ->postJson('/api/webhooks/payment', $payload)
+            ->assertOk();
+
+        $this->assertDatabaseHas('purchases', [
+            'id' => $purchase->id,
+            'status' => 'failed',
+        ]);
+    }
+
     public function test_webhook_with_invalid_signature_is_rejected(): void
     {
         config([
