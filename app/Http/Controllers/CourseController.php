@@ -146,7 +146,7 @@ class CourseController extends Controller
             'status' => 'draft',
         ]);
 
-        return response()->json($course, 201);
+        return response()->json($this->managementCourse($course), 201);
     }
 
     public function update(
@@ -157,7 +157,7 @@ class CourseController extends Controller
 
         $course->update($request->validated());
 
-        return response()->json($course);
+        return response()->json($this->managementCourse($course));
     }
 
     public function destroy(Course $course): JsonResponse
@@ -178,7 +178,7 @@ class CourseController extends Controller
 
         CoursePublished::dispatch($course->refresh());
 
-        return response()->json($course);
+        return response()->json($this->managementCourse($course));
     }
 
     public function unpublish(Course $course): JsonResponse
@@ -188,6 +188,14 @@ class CourseController extends Controller
         $course->status = 'draft';
         $course->save();
 
-        return response()->json($course->refresh());
+        return response()->json($this->managementCourse($course));
+    }
+
+    private function managementCourse(Course $course): Course
+    {
+        return $course
+            ->refresh()
+            ->load(['category', 'author:id,name,email'])
+            ->loadCount('lessons');
     }
 }

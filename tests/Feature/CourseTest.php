@@ -140,7 +140,9 @@ class CourseTest extends TestCase
             ->withToken($token->plainTextToken)
             ->postJson("/api/courses/{$course->id}/publish")
             ->assertOk()
-            ->assertJsonPath('status', 'published');
+            ->assertJsonPath('status', 'published')
+            ->assertJsonPath('author.id', $teacher->id)
+            ->assertJsonPath('author.name', $teacher->name);
 
         Event::assertDispatched(
             CoursePublished::class,
