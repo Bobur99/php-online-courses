@@ -55,7 +55,7 @@ onMounted(() => {
           </template>
           <template v-else>
             <RouterLink to="/login"><AppButton variant="ghost">Войти</AppButton></RouterLink>
-            <RouterLink to="/register"><AppButton>Начать обучение</AppButton></RouterLink>
+            <RouterLink to="/register"><AppButton>Зарегистрироваться</AppButton></RouterLink>
           </template>
         </div>
       </div>
