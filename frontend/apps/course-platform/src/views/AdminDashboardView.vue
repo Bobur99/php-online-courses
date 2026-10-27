@@ -526,8 +526,10 @@ async function createLesson(course: Course) {
       <div class="order-3 mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <h2 class="text-xl font-bold">Мои курсы</h2>
-            <p class="mt-1 text-sm text-slate-500">Созданные курсы и учебные материалы.</p>
+            <h2 class="text-xl font-bold">{{ isAdmin ? 'Все курсы' : 'Мои курсы' }}</h2>
+            <p class="mt-1 text-sm text-slate-500">
+              {{ isAdmin ? 'Курсы всех преподавателей и учебные материалы.' : 'Созданные курсы и учебные материалы.' }}
+            </p>
           </div>
           <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{{
             courses.length
@@ -549,6 +551,12 @@ async function createLesson(course: Course) {
               <div class="min-w-0 flex-1">
                 <h3 class="font-bold text-slate-900">{{ course.title }}</h3>
                 <p class="mt-1 line-clamp-2 text-sm text-slate-500">{{ course.description }}</p>
+                <div v-if="isAdmin" class="mt-3 inline-flex items-center gap-2 rounded-full bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                  <span class="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-700">
+                    {{ (course.author?.name ?? 'А').charAt(0).toUpperCase() }}
+                  </span>
+                  <span>Преподаватель: {{ course.author?.name ?? 'не указан' }}</span>
+                </div>
               </div>
               <div class="flex shrink-0 items-center gap-2">
                 <span
