@@ -48,10 +48,10 @@ function translateValidationMessage(message: string): string {
   match = message.match(/^The (.+) has already been taken\.$/i)
   if (match) return `Значение поля «${fieldLabel(match[1])}» уже используется.`
 
-  match = message.match(/^The (.+) must be at least (\d+) characters\.$/i)
+  match = message.match(/^The (.+?)(?: field)? must be at least (\d+) characters\.$/i)
   if (match) return `Поле «${fieldLabel(match[1])}» должно содержать не менее ${match[2]} символов.`
 
-  match = message.match(/^The (.+) may not be greater than (\d+) characters\.$/i)
+  match = message.match(/^The (.+?)(?: field)? may not be greater than (\d+) characters\.$/i)
   if (match) return `Поле «${fieldLabel(match[1])}» должно содержать не более ${match[2]} символов.`
 
   match = message.match(/^The (.+) field must be a valid email address\.$/i)
