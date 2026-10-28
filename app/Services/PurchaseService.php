@@ -6,9 +6,10 @@ use App\Contracts\PaymentProviderInterface;
 use App\Models\Course;
 use App\Models\Purchase;
 use App\Models\User;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class PurchaseService
 {
@@ -30,25 +31,22 @@ class PurchaseService
             ]);
         }
 
-        $lastPurchase = Purchase::query()
-            ->where('student_id', $student->id)
-            ->where('course_id', $course->id)
-            ->latest('id')
-            ->first();
-
-        if ($lastPurchase?->status === 'paid') {
-            throw ValidationException::withMessages([
-                'course' => 'Course has already been purchased.',
-            ]);
-        }
-
-        if ($lastPurchase?->status === 'pending') {
-            throw ValidationException::withMessages([
-                'course' => 'There is already a payment awaiting confirmation.',
-            ]);
-        }
-
         [$purchase, $payment] = DB::transaction(function () use ($student, $course): array {
+            // Lock a stable parent row: there may not be a purchase row yet.
+            User::whereKey($student->id)->lockForUpdate()->firstOrFail();
+            $purchases = Purchase::where('student_id', $student->id)->where('course_id', $course->id);
+            if ((clone $purchases)->where('status', 'paid')->exists()) {
+                throw ValidationException::withMessages([
+                    'course' => 'Course has already been purchased.',
+                ]);
+            }
+
+            if ((clone $purchases)->where('status', 'pending')->exists()) {
+                throw ValidationException::withMessages([
+                    'course' => 'There is already a payment awaiting confirmation.',
+                ]);
+            }
+
             $purchase = Purchase::create([
                 'student_id' => $student->id,
                 'course_id' => $course->id,
@@ -61,6 +59,7 @@ class PurchaseService
             $purchase->update([
                 'provider_operation_id' => $payment['operation_id'],
             ]);
+            Log::info('Purchase created.', ['purchase_id' => $purchase->id, 'operation_id' => $payment['operation_id']]);
 
             return [$purchase, $payment];
         });

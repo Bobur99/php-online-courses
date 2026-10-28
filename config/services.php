@@ -35,7 +35,7 @@ return [
         ],
     ],
     'payment_provider' => [
-        'url' => env('PAYMENT_PROVIDER_URL', 'http://payment-provider'),
+        'url' => env('PAYMENT_PROVIDER_URL', 'http://payment-provider:8080'),
         'webhook_url' => env(
             'PAYMENT_PROVIDER_WEBHOOK_URL',
             'http://nginx/api/webhooks/payment'
@@ -44,7 +44,6 @@ return [
             'PAYMENT_PROVIDER_WEBHOOK_SECRET',
             'change-me'
         ),
-        'return_url' => rtrim(env('COURSE_PLATFORM_URL', 'http://localhost:5173'), '/'),
     ],
 
 ];

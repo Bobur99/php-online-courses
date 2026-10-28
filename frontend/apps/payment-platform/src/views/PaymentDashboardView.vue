@@ -1,20 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-
-type Payment = {
-  operation_id: string
-  amount: number | string
-  currency: string
-  description: string
-  status: 'pending' | 'success' | 'failed'
-  created_at?: string
-}
-
-const providerUrl = import.meta.env.VITE_PAYMENT_PROVIDER_URL ?? 'http://localhost:8080'
+import { providerRequest, type Payment } from '../api'
 const payments = ref<Payment[]>([])
 const loading = ref(true)
 const error = ref('')
 let refreshTimer: ReturnType<typeof setInterval> | undefined
+let refreshing = false
+let disposed = false
 
 const stats = computed(() => ({
   total: payments.value.length,
@@ -41,28 +33,29 @@ function statusLabel(status: Payment['status']) {
 }
 
 async function loadPayments() {
-  loading.value = true
-  error.value = ''
+  if (refreshing || disposed) return
+  refreshing = true
   try {
-    const response = await fetch(`${providerUrl}/payments`)
-    if (!response.ok) throw new Error('Не удалось загрузить операции.')
-    const data = await response.json() as { payments: Payment[] }
+    const data = await providerRequest<{ payments: Payment[] }>('/payments')
+    if (!Array.isArray(data.payments)) throw new Error('Платёжный сервис вернул некорректные данные.')
+    if (disposed) return
     payments.value = data.payments
+    error.value = ''
   } catch (exception) {
     error.value = exception instanceof Error ? exception.message : 'Не удалось загрузить операции.'
   } finally {
     loading.value = false
+    refreshing = false
   }
 }
 
 onMounted(async () => {
   await loadPayments()
-  refreshTimer = setInterval(() => {
-    loadPayments().catch(() => undefined)
-  }, 3000)
+  if (!disposed) refreshTimer = setInterval(() => { void loadPayments() }, 3000)
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   if (refreshTimer) clearInterval(refreshTimer)
 })
 </script>
@@ -86,14 +79,14 @@ onBeforeUnmount(() => {
       </div>
 
       <section class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-200 px-5 py-4"><h2 class="font-semibold text-slate-900">История операций</h2><p class="mt-1 text-sm text-slate-500">Все тестовые платежи из текущей сессии провайдера.</p></div>
+        <div class="border-b border-slate-200 px-5 py-4"><h2 class="font-semibold text-slate-900">История операций</h2><p class="mt-1 text-sm text-slate-500">Все тестовые платежи. Данные обновляются автоматически.</p></div>
         <div v-if="loading" class="px-5 py-12 text-center text-slate-500">Загрузка операций…</div>
-        <div v-else-if="error" class="px-5 py-12 text-center text-red-600">{{ error }}</div>
-        <div v-else-if="payments.length === 0" class="px-5 py-12 text-center text-slate-500">Операций пока нет.</div>
-        <div v-else class="divide-y divide-slate-100">
+        <div v-if="error" role="alert" class="px-5 py-5 text-center text-red-600">{{ error }}</div>
+        <div v-if="!loading && !error && payments.length === 0" class="px-5 py-12 text-center text-slate-500">Операций пока нет.</div>
+        <div v-if="!loading && payments.length" class="divide-y divide-slate-100">
           <div v-for="payment in payments" :key="payment.operation_id" class="flex flex-col gap-4 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
             <div class="min-w-0"><p class="font-semibold text-slate-900">{{ payment.description }}</p><p class="mt-1 truncate text-xs text-slate-400">{{ payment.operation_id }} · {{ formatDate(payment.created_at) }}</p></div>
-            <div class="flex items-center gap-4"><div class="text-right"><p class="font-semibold text-slate-900">{{ formatAmount(payment) }}</p><span class="text-xs font-medium" :class="{ 'text-amber-600': payment.status === 'pending', 'text-emerald-600': payment.status === 'success', 'text-red-600': payment.status === 'failed' }">{{ statusLabel(payment.status) }}</span></div><RouterLink v-if="payment.status === 'pending'" :to="`/pay/${payment.operation_id}`" class="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">Открыть</RouterLink><span v-else class="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-500">Завершено</span></div>
+            <div class="flex items-center gap-4"><div class="text-right"><p class="font-semibold text-slate-900">{{ formatAmount(payment) }}</p><span class="text-xs font-medium" :class="{ 'text-amber-600': payment.status === 'pending', 'text-emerald-600': payment.status === 'success', 'text-red-600': payment.status === 'failed' }">{{ statusLabel(payment.status) }}</span><p v-if="payment.status !== 'pending' && payment.webhook_delivered !== true" class="mt-1 text-xs text-amber-700">Доставка уведомления не подтверждена</p></div><RouterLink :to="`/pay/${payment.operation_id}`" class="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">{{ payment.status === 'pending' ? 'Открыть' : 'Подробнее' }}</RouterLink></div>
           </div>
         </div>
       </section>

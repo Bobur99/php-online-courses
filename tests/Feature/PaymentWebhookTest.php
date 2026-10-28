@@ -150,4 +150,26 @@ class PaymentWebhookTest extends TestCase
             'status' => 'paid',
         ]);
     }
+
+    public function test_unknown_status_and_missing_operation_are_rejected_without_changing_purchase(): void
+    {
+        config(['services.payment_provider.webhook_secret' => 'test-secret']);
+        $purchase = $this->createPurchase();
+        foreach ([['status' => 'success'], ['operation_id' => 'operation-123', 'status' => 'unknown']] as $payload) {
+            $this->withHeader('X-Payment-Signature', $this->signature($payload))
+                ->postJson('/api/webhooks/payment', $payload)->assertUnprocessable();
+            $this->assertSame('pending', $purchase->refresh()->status);
+        }
+    }
+
+    public function test_failed_operation_cannot_be_changed_to_success(): void
+    {
+        config(['services.payment_provider.webhook_secret' => 'test-secret']);
+        $purchase = $this->createPurchase();
+        $purchase->update(['status' => 'failed']);
+        $payload = $this->webhookPayload();
+        $this->withHeader('X-Payment-Signature', $this->signature($payload))
+            ->postJson('/api/webhooks/payment', $payload)->assertConflict();
+        $this->assertSame('failed', $purchase->refresh()->status);
+    }
 }

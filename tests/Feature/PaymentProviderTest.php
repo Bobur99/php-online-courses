@@ -7,12 +7,17 @@ use PHPUnit\Framework\TestCase;
 class PaymentProviderTest extends TestCase
 {
     private string $projectRoot;
+
     private string $storageFile;
-    private string $storageBackup;
+
     private $providerProcess;
+
     private $webhookProcess;
+
     private string $webhookRouterFile;
+
     private int $providerPort;
+
     private int $webhookPort;
 
     protected function setUp(): void
@@ -21,10 +26,7 @@ class PaymentProviderTest extends TestCase
 
         $this->projectRoot = dirname(__DIR__, 2);
 
-        $this->storageFile = $this->projectRoot . '/services/payment-provider/storage/payments.json';
-        $this->storageBackup = file_exists($this->storageFile)
-            ? (string) file_get_contents($this->storageFile)
-            : '[]';
+        $this->storageFile = tempnam(sys_get_temp_dir(), 'provider-test-');
         file_put_contents($this->storageFile, '[]');
 
         $this->providerPort = random_int(19000, 19900);
@@ -32,10 +34,10 @@ class PaymentProviderTest extends TestCase
 
         $this->webhookRouterFile = $this->webhookRouter();
         $this->webhookProcess = $this->startServer(
-            PHP_BINARY . ' -S 127.0.0.1:' . $this->webhookPort . ' ' . escapeshellarg($this->webhookRouterFile)
+            PHP_BINARY.' -S 127.0.0.1:'.$this->webhookPort.' '.escapeshellarg($this->webhookRouterFile)
         );
         $this->providerProcess = $this->startServer(
-            PHP_BINARY . ' -S 127.0.0.1:' . $this->providerPort . ' -t ' . escapeshellarg($this->projectRoot . '/services/payment-provider/public')
+            'PAYMENT_PROVIDER_WEBHOOK_SECRET=test-secret PAYMENT_STORAGE_FILE='.escapeshellarg($this->storageFile).' '.PHP_BINARY.' -S 127.0.0.1:'.$this->providerPort.' -t '.escapeshellarg($this->projectRoot.'/services/payment-provider/public')
         );
     }
 
@@ -50,7 +52,9 @@ class PaymentProviderTest extends TestCase
             proc_close($this->webhookProcess);
         }
 
-        file_put_contents($this->storageFile, $this->storageBackup);
+        if (isset($this->storageFile)) {
+            unlink($this->storageFile);
+        }
         if (isset($this->webhookRouterFile)) {
             @unlink($this->webhookRouterFile);
         }
@@ -102,6 +106,51 @@ class PaymentProviderTest extends TestCase
         $this->assertSame('Payment not found.', $body['message']);
     }
 
+    public function test_failed_webhook_delivery_is_visible_and_can_be_retried(): void
+    {
+        [, $created] = $this->request('POST', '/payments', $this->paymentData('/webhook?status=503'));
+        [$status] = $this->request('POST', "/payments/{$created['operation_id']}/complete");
+        $this->assertSame(502, $status);
+        [, $result] = $this->request('GET', "/payments/{$created['operation_id']}");
+        $this->assertSame('success', $result['payment']['status']);
+        $this->assertFalse($result['payment']['webhook_delivered']);
+        $this->assertSame(503, $result['payment']['webhook_http_status']);
+        $payments = json_decode(file_get_contents($this->storageFile), true);
+        $payments[$created['operation_id']]['webhook_url'] = "http://127.0.0.1:{$this->webhookPort}/webhook";
+        file_put_contents($this->storageFile, json_encode($payments));
+        [$retryStatus] = $this->request('POST', "/payments/{$created['operation_id']}/complete");
+        $this->assertSame(200, $retryStatus);
+        [, $result] = $this->request('GET', "/payments/{$created['operation_id']}");
+        $this->assertTrue($result['payment']['webhook_delivered']);
+        $this->assertSame(2, $result['payment']['webhook_attempts']);
+    }
+
+    public function test_terminal_result_cannot_be_reversed(): void
+    {
+        [, $created] = $this->request('POST', '/payments', $this->paymentData());
+        $path = "/payments/{$created['operation_id']}";
+        $this->assertSame(200, $this->request('POST', "$path/fail")[0]);
+        $this->assertSame(409, $this->request('POST', "$path/complete")[0]);
+        $this->assertSame('failed', $this->request('GET', $path)[1]['payment']['status']);
+    }
+
+    public function test_invalid_payment_data_is_rejected_and_no_return_link_is_created(): void
+    {
+        $data = $this->paymentData();
+        $data['amount'] = -10;
+        $this->assertSame(422, $this->request('POST', '/payments', $data)[0]);
+        [, $created] = $this->request('POST', '/payments', $this->paymentData());
+        [, $payment] = $this->request('GET', "/payments/{$created['operation_id']}");
+        $this->assertArrayNotHasKey('return_url', $payment['payment']);
+        $this->assertCount(1, json_decode(file_get_contents($this->storageFile), true));
+    }
+
+    private function paymentData(string $path = '/webhook'): array
+    {
+        return ['amount' => 100, 'currency' => 'UZS', 'description' => 'Test',
+            'webhook_url' => "http://127.0.0.1:{$this->webhookPort}{$path}"];
+    }
+
     private function request(string $method, string $path, ?array $payload = null): array
     {
         $headers = ['Content-Type: application/json'];
@@ -150,6 +199,7 @@ class PaymentProviderTest extends TestCase
             restore_error_handler();
             if (is_resource($socket)) {
                 fclose($socket);
+
                 return;
             }
             usleep(50000);
@@ -161,7 +211,8 @@ class PaymentProviderTest extends TestCase
     private function webhookRouter(): string
     {
         $router = tempnam(sys_get_temp_dir(), 'payment-webhook-');
-        file_put_contents($router, "<?php\nhttp_response_code(200);\nheader('Content-Type: application/json');\necho json_encode(['ok' => true]);\n");
+        file_put_contents($router, '<?php $signature = hash_hmac("sha256", file_get_contents("php://input"), getenv("PAYMENT_PROVIDER_WEBHOOK_SECRET") ?: "test-secret"); http_response_code(hash_equals($signature, $_SERVER["HTTP_X_PAYMENT_SIGNATURE"] ?? "") ? (int)($_GET["status"] ?? 200) : 401); header("Content-Type: application/json"); echo json_encode(["ok" => true]);');
+
         return $router;
     }
 }

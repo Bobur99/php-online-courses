@@ -85,7 +85,7 @@ class PurchaseTest extends TestCase
             'provider_operation_id' => 'operation-123',
         ]);
 
-        Http::assertSent(fn ($request): bool => $request['return_url'] === "http://courses.test/courses/{$course->id}");
+        Http::assertSent(fn ($request): bool => ! isset($request['return_url']));
     }
 
     public function test_student_can_check_purchase_status(): void
@@ -209,5 +209,25 @@ class PurchaseTest extends TestCase
             'provider_operation_id' => 'operation-retry',
             'status' => 'pending',
         ]);
+    }
+
+    public function test_provider_failure_does_not_leave_a_pending_purchase(): void
+    {
+        $student = $this->createStudent();
+        $course = $this->createCourse($this->createTeacher());
+        Http::fake(['*' => Http::response(['message' => 'Unavailable'], 503)]);
+        $this->withToken($student->createToken('test')->plainTextToken)
+            ->postJson("/api/courses/{$course->id}/purchase")->assertStatus(503);
+        $this->assertDatabaseCount('purchases', 0);
+    }
+
+    public function test_invalid_provider_response_is_rejected(): void
+    {
+        $student = $this->createStudent();
+        $course = $this->createCourse($this->createTeacher());
+        Http::fake(['*' => Http::response(['operation_id' => [], 'payment_url' => 'invalid'], 201)]);
+        $this->withToken($student->createToken('test')->plainTextToken)
+            ->postJson("/api/courses/{$course->id}/purchase")->assertStatus(503);
+        $this->assertDatabaseCount('purchases', 0);
     }
 }

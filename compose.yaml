@@ -10,6 +10,7 @@ services:
             - payment-provider
 
     queue:
+        restart: unless-stopped
         build:
             context: .
             dockerfile: docker/php/Dockerfile
@@ -45,6 +46,7 @@ services:
             context: ./services/payment-provider
         environment:
             PAYMENT_CHECKOUT_URL: http://localhost:5173/pay
+            PAYMENT_PROVIDER_WEBHOOK_SECRET: ${PAYMENT_PROVIDER_WEBHOOK_SECRET:?Set PAYMENT_PROVIDER_WEBHOOK_SECRET in .env}
         expose:
             - "8080"
         ports:
