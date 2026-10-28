@@ -122,13 +122,14 @@ class CourseController extends Controller
 
     public function show(Course $course): JsonResponse
     {
-        abort_unless($course->status === 'published', 404);
-
         $user = auth('sanctum')->user();
         $isPurchased = $user?->purchases()
             ->where('course_id', $course->id)
             ->where('status', 'paid')
             ->exists() ?? false;
+        abort_unless($course->status === 'published' || $isPurchased
+            || $user?->role === 'admin'
+            || ($user?->role === 'teacher' && $course->author_id === $user->id), 404);
 
         return response()->json([
             ...$course->load(['category', 'author:id,name,email'])->toArray(),

@@ -19,7 +19,7 @@ class LessonRequest extends FormRequest
             : 'sometimes';
 
         $courseId = $this->route('course')?->id
-            ?? $this->input('course_id');
+            ?? $this->route('lesson')?->course_id;
 
         return [
             'title' => [$required, 'string', 'max:255'],

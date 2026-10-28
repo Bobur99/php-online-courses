@@ -17,10 +17,9 @@ const openRoleUser = computed(() => users.value.find((user) => user.id === openR
 
 onMounted(async () => {
   if (!auth.isAuthenticated) return router.replace('/login')
-  await auth.loadProfile()
-  if (auth.user?.role !== 'admin') return router.replace('/dashboard')
-
   try {
+    await auth.loadProfile()
+    if (auth.user?.role !== 'admin') return router.replace('/dashboard')
     users.value = (await adminApi.users()).data
   } catch (exception) {
     error.value = exception instanceof Error ? exception.message : 'Не удалось загрузить пользователей.'
@@ -59,21 +58,28 @@ async function changeRole(user: User, role: User['role']) {
     openRoleId.value = null
     return
   }
-  user.role = (await adminApi.updateRole(user.id, role)).role
-  openRoleId.value = null
+  try {
+    user.role = (await adminApi.updateRole(user.id, role)).role
+  } catch (exception) {
+    error.value = exception instanceof Error ? exception.message : 'Не удалось изменить роль.'
+  } finally { openRoleId.value = null }
 }
 
 async function toggleBlock(user: User) {
   if (auth.user?.id === user.id) return
-  user.is_blocked = (await adminApi.setBlocked(user.id, !user.is_blocked)).is_blocked
+  try {
+    user.is_blocked = (await adminApi.setBlocked(user.id, !user.is_blocked)).is_blocked
+  } catch (exception) {
+    error.value = exception instanceof Error ? exception.message : 'Не удалось изменить блокировку.'
+  }
 }
 </script>
 
 <template>
   <section class="mx-auto max-w-7xl px-6 py-12">
     <div v-if="loading" class="text-sm text-slate-500">Загружаем пользователей…</div>
-    <div v-else-if="error" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{{ error }}</div>
     <template v-else>
+      <div v-if="error" role="alert" class="mb-5 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{{ error }}<button type="button" class="ml-4 font-semibold" @click="error = ''">Закрыть</button></div>
       <div class="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
           <p class="text-sm font-semibold text-indigo-600">Управление платформой</p>

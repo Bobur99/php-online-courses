@@ -47,9 +47,9 @@ const error = ref('')
 
 onMounted(async () => {
   if (!auth.isAuthenticated) return router.replace('/login')
-  await auth.loadProfile()
-  if (!['admin', 'teacher'].includes(auth.user?.role ?? '')) return router.replace('/dashboard')
   try {
+    await auth.loadProfile()
+    if (!['admin', 'teacher'].includes(auth.user?.role ?? '')) return router.replace('/dashboard')
     const [categoryResponse, courseResponse] = await Promise.all([
       adminApi.categories(),
       isAdmin.value ? adminApi.courses() : adminApi.teacherCourses(),
@@ -67,6 +67,8 @@ onMounted(async () => {
 
 async function saveCategory() {
   if (!newCategory.value.trim()) return
+  error.value = ''
+  try {
   if (editingCategoryId.value === null) {
     categories.value.push(await adminApi.createCategory(newCategory.value.trim()))
   } else {
@@ -76,6 +78,9 @@ async function saveCategory() {
   }
   editingCategoryId.value = null
   newCategory.value = ''
+  } catch (exception) {
+    error.value = exception instanceof Error ? exception.message : 'Не удалось сохранить категорию.'
+  }
 }
 
 function startEditCategory(category: Category) {
@@ -85,8 +90,13 @@ function startEditCategory(category: Category) {
 
 async function deleteCategory(category: Category) {
   if (!window.confirm(`Удалить категорию «${category.name}»?`)) return
+  error.value = ''
+  try {
   await adminApi.deleteCategory(category.id)
   categories.value = categories.value.filter((item) => item.id !== category.id)
+  } catch (exception) {
+    error.value = exception instanceof Error ? exception.message : 'Не удалось удалить категорию.'
+  }
 }
 
 async function createCourse() {
@@ -163,10 +173,15 @@ function requestDeleteCourse(course: Course) {
 async function confirmDeleteCourse() {
   if (!deleteCourseTarget.value) return
   const course = deleteCourseTarget.value
+  try {
   await adminApi.deleteCourse(course.id)
   courses.value = courses.value.filter((item) => item.id !== course.id)
   if (openCourseId.value === course.id) openCourseId.value = null
   deleteCourseTarget.value = null
+  } catch (exception) {
+    deleteCourseTarget.value = null
+    error.value = exception instanceof Error ? exception.message : 'Не удалось удалить курс.'
+  }
 }
 
 async function publishCourse(course: Course) {
@@ -207,6 +222,7 @@ function lessonCount(course: Course): number {
 }
 
 async function openLessonModal(course: Course) {
+  try {
   lessonError.value = ''
   lessonTargetCourse.value = course
   lessonModalMode.value = 'create'
@@ -217,8 +233,11 @@ async function openLessonModal(course: Course) {
   if (!courseLessons.value[course.id]) {
     courseLessons.value[course.id] = (await adminApi.lessons(course.id)).data
   }
-  lessonOrder.value = String((courseLessons.value[course.id]?.length ?? 0) + 1)
+  lessonOrder.value = String(Math.max(0, ...(courseLessons.value[course.id] ?? []).map((lesson) => lesson.order_number)) + 1)
   lessonModalOpen.value = true
+  } catch (exception) {
+    error.value = exception instanceof Error ? exception.message : 'Не удалось загрузить уроки.'
+  }
 }
 
 function openEditLesson(course: Course, lesson: AdminLesson) {
@@ -240,6 +259,7 @@ function requestDeleteLesson(lesson: AdminLesson) {
 async function confirmDeleteLesson() {
   if (!deleteLessonTarget.value) return
   const lesson = deleteLessonTarget.value
+  try {
   await adminApi.deleteLesson(lesson.id)
   for (const courseId of Object.keys(courseLessons.value)) {
     courseLessons.value[Number(courseId)] = (courseLessons.value[Number(courseId)] ?? []).filter(
@@ -247,9 +267,14 @@ async function confirmDeleteLesson() {
     )
   }
   deleteLessonTarget.value = null
+  } catch (exception) {
+    deleteLessonTarget.value = null
+    error.value = exception instanceof Error ? exception.message : 'Не удалось удалить урок.'
+  }
 }
 
 async function toggleCourse(course: Course) {
+  try {
   if (openCourseId.value === course.id) {
     openCourseId.value = null
     return
@@ -262,6 +287,9 @@ async function toggleCourse(course: Course) {
     courseLessons.value[course.id] = (await adminApi.lessons(course.id)).data
   }
   lessonOrder.value = String((courseLessons.value[course.id]?.length ?? 0) + 1)
+  } catch (exception) {
+    error.value = exception instanceof Error ? exception.message : 'Не удалось загрузить уроки.'
+  }
 }
 
 async function createLesson(course: Course) {
@@ -279,11 +307,7 @@ async function createLesson(course: Course) {
     if (lessonFile.value) formData.append('file', lessonFile.value)
     const lesson =
       lessonModalMode.value === 'edit' && editingLessonId.value !== null
-        ? await adminApi.updateLesson(editingLessonId.value, {
-            title: lessonTitle.value.trim(),
-            content: lessonContent.value.trim(),
-            order_number: Number(lessonOrder.value),
-          })
+        ? await adminApi.updateLesson(editingLessonId.value, formData)
         : await adminApi.createLesson(course.id, formData)
     courseLessons.value[course.id] = [
       ...(courseLessons.value[course.id] ?? []).filter((item) => item.id !== lesson.id),
@@ -307,10 +331,8 @@ async function createLesson(course: Course) {
 <template>
   <section class="mx-auto flex max-w-7xl flex-col px-6 py-12">
     <div v-if="loading" class="text-sm text-slate-500">Загружаем админ-панель…</div>
-    <div v-else-if="error" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-      {{ error }}
-    </div>
     <template v-else>
+      <div v-if="error" role="alert" class="mb-5 flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{{ error }}<button type="button" class="ml-4 font-semibold" @click="error = ''">Закрыть</button></div>
       <div class="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
           <h1 class="text-4xl font-bold">{{ isAdmin ? 'Управление платформой' : 'Управление курсами' }}</h1>

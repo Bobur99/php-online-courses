@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest'
-import { translateValidationMessage } from '../shared/api/http'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { request, translateValidationMessage } from '../shared/api/http'
+
+afterEach(() => vi.unstubAllGlobals())
 
 describe('API error translation', () => {
   it.each([
@@ -17,5 +19,10 @@ describe('API error translation', () => {
     expect(translateValidationMessage('Unexpected server failure.')).toBe(
       'Не удалось выполнить запрос. Попробуйте ещё раз.',
     )
+  })
+
+  it('shows a Russian network error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    await expect(request('/courses')).rejects.toThrow('Не удалось связаться с сервером. Проверьте соединение и попробуйте ещё раз.')
   })
 })

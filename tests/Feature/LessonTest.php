@@ -76,7 +76,7 @@ class LessonTest extends TestCase
 
     public function test_course_author_can_attach_file_to_lesson(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $teacher = $this->createTeacher();
         $course = $this->createCourse($teacher);
         $token = $teacher->createToken('api-token');
@@ -91,12 +91,12 @@ class LessonTest extends TestCase
 
         $lesson = Lesson::query()->where('course_id', $course->id)->firstOrFail();
         $this->assertStringStartsWith('lessons/', $lesson->file_path);
-        Storage::disk('public')->assertExists($lesson->file_path);
+        Storage::disk('local')->assertExists($lesson->file_path);
     }
 
     public function test_course_author_can_attach_image_to_lesson(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $teacher = $this->createTeacher();
         $course = $this->createCourse($teacher);
         $token = $teacher->createToken('api-token');
@@ -110,7 +110,7 @@ class LessonTest extends TestCase
             ->assertCreated();
 
         $lesson = Lesson::query()->where('course_id', $course->id)->firstOrFail();
-        Storage::disk('public')->assertExists($lesson->file_path);
+        Storage::disk('local')->assertExists($lesson->file_path);
     }
 
     public function test_course_author_can_update_lesson(): void

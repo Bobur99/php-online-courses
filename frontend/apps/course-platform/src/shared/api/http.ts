@@ -14,6 +14,7 @@ const translatedMessages: Record<string, string> = {
   'Course has already been purchased.': 'Этот курс уже приобретён.',
   'Only published courses can be purchased.': 'Купить можно только опубликованный курс.',
   'Payment provider request failed.': 'Платёжный сервис временно недоступен. Попробуйте ещё раз.',
+  'There is already a payment awaiting confirmation.': 'Платёж уже ожидает подтверждения.',
 }
 
 const fieldLabels: Record<string, string> = {
@@ -96,13 +97,13 @@ export class HttpError extends Error {
     public readonly status: number,
     public readonly payload: ApiError,
   ) {
-    super(errorMessage(payload))
+    super(status === 409 ? 'Изменение невозможно: запись используется или конфликтует с существующими данными.' : errorMessage(payload))
   }
 }
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('auth_token')
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await safeFetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
       Accept: 'application/json',
@@ -113,13 +114,16 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   })
 
   const payload = (await response.json().catch(() => ({}))) as T & ApiError
-  if (!response.ok) throw new HttpError(response.status, payload)
+  if (!response.ok) {
+    if (response.status === 401) localStorage.removeItem('auth_token')
+    throw new HttpError(response.status, payload)
+  }
   return payload as T
 }
 
 export async function download(path: string): Promise<Blob> {
   const token = localStorage.getItem('auth_token')
-  const response = await fetch(`${API_BASE_URL}${path.replace(/^\/api/, '')}`, {
+  const response = await safeFetch(`${API_BASE_URL}${path.replace(/^\/api/, '')}`, {
     headers: {
       Accept: 'application/pdf',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -132,4 +136,12 @@ export async function download(path: string): Promise<Blob> {
   }
 
   return response.blob()
+}
+
+async function safeFetch(url: string, options: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, { ...options, signal: options.signal ?? AbortSignal.timeout(15000) })
+  } catch {
+    throw new Error('Не удалось связаться с сервером. Проверьте соединение и попробуйте ещё раз.')
+  }
 }

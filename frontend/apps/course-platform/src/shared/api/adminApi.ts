@@ -22,6 +22,9 @@ export const adminApi = {
   teacherCourses: () => request<{ data: Course[] }>('/teacher/courses'),
   lessons: (courseId: number) => request<{ data: AdminLesson[] }>(`/courses/${courseId}/lessons`),
   createLesson: (courseId: number, lesson: FormData | Pick<AdminLesson, 'title' | 'content' | 'order_number'>) => request<AdminLesson>(`/courses/${courseId}/lessons`, { method: 'POST', body: lesson instanceof FormData ? lesson : JSON.stringify(lesson) }),
-  updateLesson: (id: number, lesson: Pick<AdminLesson, 'title' | 'content' | 'order_number'>) => request<AdminLesson>(`/lessons/${id}`, { method: 'PATCH', body: JSON.stringify(lesson) }),
+  updateLesson: (id: number, lesson: FormData) => {
+    lesson.set('_method', 'PATCH')
+    return request<AdminLesson>(`/lessons/${id}`, { method: 'POST', body: lesson })
+  },
   deleteLesson: (id: number) => request<void>(`/lessons/${id}`, { method: 'DELETE' }),
 }

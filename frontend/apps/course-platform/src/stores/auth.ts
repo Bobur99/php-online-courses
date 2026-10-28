@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { authApi, type User } from '../shared/api/authApi'
+import { HttpError } from '../shared/api/http'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
@@ -38,7 +39,16 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function loadProfile() {
     if (!token.value) return
-    user.value = await authApi.profile()
+    try {
+      user.value = await authApi.profile()
+    } catch (exception) {
+      if (exception instanceof HttpError && [401, 403].includes(exception.status)) {
+        token.value = null
+        user.value = null
+        localStorage.removeItem('auth_token')
+      }
+      throw exception
+    }
   }
 
   return { user, token, isAuthenticated, login, register, updateProfile, logout, loadProfile }

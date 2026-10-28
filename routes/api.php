@@ -19,7 +19,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/profile', [AuthController::class, 'profile'])
         ->name('profile');
 
-    Route::patch('/profile', [AuthController::class, 'updateProfile'])
+    Route::match(['put', 'patch'], '/profile', [AuthController::class, 'updateProfile'])
         ->name('updateProfile');
 
     Route::patch('/profile/password', [AuthController::class, 'changePassword'])
@@ -53,7 +53,7 @@ Route::get('/categories', [CategoryController::class, 'index']);
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/categories', [CategoryController::class, 'store']);
-    Route::patch('/categories/{category}', [CategoryController::class, 'update']);
+    Route::match(['put', 'patch'], '/categories/{category}', [CategoryController::class, 'update']);
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
 });
 
@@ -62,7 +62,7 @@ Route::get('/courses/{course}', [CourseController::class, 'show']);
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/courses', [CourseController::class, 'store']);
-    Route::patch('/courses/{course}', [CourseController::class, 'update']);
+    Route::match(['put', 'patch'], '/courses/{course}', [CourseController::class, 'update']);
     Route::delete('/courses/{course}', [CourseController::class, 'destroy']);
     Route::post('/courses/{course}/publish', [CourseController::class, 'publish']);
     Route::post('/courses/{course}/unpublish', [CourseController::class, 'unpublish']);
@@ -72,7 +72,8 @@ Route::get('/courses/{course}/lessons', [LessonController::class, 'index']);
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/courses/{course}/lessons', [LessonController::class, 'store']);
-    Route::patch('/lessons/{lesson}', [LessonController::class, 'update']);
+    Route::match(['put', 'patch'], '/lessons/{lesson}', [LessonController::class, 'update']);
+    Route::get('/lessons/{lesson}/material', [LessonController::class, 'material']);
     Route::delete('/lessons/{lesson}', [LessonController::class, 'destroy']);
 });
 

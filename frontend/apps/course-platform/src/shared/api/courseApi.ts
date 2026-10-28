@@ -22,6 +22,7 @@ export type Lesson = {
   order_number?: number
   duration_minutes?: number
   file_path?: string | null
+  material_url?: string | null
   has_material?: boolean
   is_completed?: boolean
 }
