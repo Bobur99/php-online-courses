@@ -3,23 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Models\Certificate;
+use App\Services\CertificateService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CertificateController extends Controller
 {
+    public function __construct(private CertificateService $certificateService) {}
+
     public function index(Request $request): JsonResponse
     {
         abort_unless($request->user()->role === 'student', 403);
 
-        $certificates = Certificate::query()
-            ->where('student_id', $request->user()->id)
-            ->with('course:id,title')
-            ->latest()
-            ->get()
+        $certificates = $this->certificateService->forStudent($request->user())
             ->map(fn (Certificate $certificate): array => [
                 'id' => $certificate->id,
                 'course' => $certificate->course,
@@ -40,14 +38,8 @@ class CertificateController extends Controller
             );
         }
 
-        abort_unless(
-            $certificate->file_path
-                && Storage::disk('local')->exists($certificate->file_path),
-            404
-        );
-
         return response()->file(
-            Storage::disk('local')->path($certificate->file_path),
+            $this->certificateService->filePath($certificate),
             [
                 'Content-Type' => 'application/pdf',
             ]
