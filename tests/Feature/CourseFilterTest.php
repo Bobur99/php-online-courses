@@ -181,4 +181,21 @@ class CourseFilterTest extends TestCase
             ->assertJsonPath('data.0.id', $first->id)
             ->assertJsonPath('data.1.id', $second->id);
     }
+
+    public function test_catalog_combines_filters_and_handles_empty_and_zero_input(): void
+    {
+        $teacher = $this->createTeacher();
+        $otherTeacher = $this->createTeacher();
+        $category = $this->createCategory('Backend');
+        $course = $this->createPublishedCourse('Laravel 0', 100, $category, $teacher);
+        $this->createPublishedCourse('PHP', 200, $category, $teacher);
+        $this->createPublishedCourse('Laravel 0 other', 300, $category, $otherTeacher);
+
+        $this->getJson("/api/courses?search=0&category_id={$category->id}&teacher_id={$teacher->id}")
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $course->id);
+        $this->getJson('/api/courses?category_id=0')
+            ->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/courses?search=&category_id=&teacher_id=&sort=invalid&direction=invalid')
+            ->assertOk()->assertJsonCount(3, 'data')->assertJsonPath('data.2.id', $course->id);
+    }
 }

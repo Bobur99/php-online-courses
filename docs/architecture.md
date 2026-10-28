@@ -71,16 +71,19 @@ For a typical API request, the responsibility flow is:
     user may perform the operation.
 4.  **Controller** --- handles HTTP concerns and returns the appropriate
     JSON response and status code.
-5.  **Service, when justified** --- coordinates a business operation
-    that is more involved than straightforward CRUD.
+5.  **Service** --- coordinates the operation, Eloquent queries,
+    persistence, transactions, file storage, and domain events.
 6.  **Eloquent model / external service** --- persists data or
     communicates with the payment provider.
 7.  **Response** --- returns only the data required by the API contract.
 
-This is a responsibility guide, not a requirement to create a separate
-class for every step. Keep straightforward CRUD in the controller and
-Eloquent where appropriate. Do not add repositories, DTOs, factories,
-interfaces, traits, or services without a concrete need.
+Controllers delegate application operations to concrete services through
+constructor injection. Services accept models, validated data, or uploaded
+files, and return models, collections, paths, or operation results; they do
+not receive HTTP requests or construct HTTP responses. Controllers keep
+request normalization, endpoint authorization, and response formatting.
+Existing Form Requests, Policies, Eloquent models, events, and jobs remain
+in place. No repository or generic CRUD abstraction is introduced.
 
 ------------------------------------------------------------------------
 
@@ -90,16 +93,16 @@ interfaces, traits, or services without a concrete need.
 
 -   `AuthController`: HTTP endpoints for registration, login, and
     logout.
--   `AuthService`: provisionally coordinates registration, login, and
-    logout if this keeps authentication workflow cohesive. It must not
-    duplicate request validation or Laravel's token/authentication
-    mechanisms.
+-   `AuthService`: registers students, verifies credentials, issues Sanctum
+    tokens, and revokes the current token on logout.
+-   `UserService`: updates profiles/passwords and performs administrative
+    user-list, role, and block-state operations after authorization.
 -   Separate Form Requests: validate registration and login inputs
     because their rules differ.
 -   `User` model: user data, role/block state, relationships, and
     Laravel authentication integration.
--   `UserController`: profile operations and administrative
-    user-management HTTP operations.
+-   `AuthController`: also exposes profile/password HTTP operations.
+-   `Admin\UserController`: administrative user-management HTTP operations.
 -   `UserPolicy` and/or explicit role checks: enforce permissions
     server-side.
 
@@ -136,6 +139,8 @@ additional endpoints.
 ## 5. Categories
 
 -   `CategoryController`: HTTP CRUD operations for categories.
+-   `CategoryService`: category queries and persistence, with authorization
+    remaining in the controller's Policy calls.
 -   `Category` model: category data and relationships.
 -   Form Requests: validate category input where appropriate.
 -   Authorization: apply the permissions specified in the requirements.
@@ -154,8 +159,9 @@ Do not add category features that are not required by the specification.
 -   Form Requests: validate course input.
 -   `CoursePolicy`: enforce course ownership and administrator
     permissions.
--   Eloquent queries: implement search by title, category/teacher
-    filters, and sorting by price/date as specified.
+-   `CourseService`: catalog queries using `when()`, administrative,
+    teacher and student listings, visibility, progress projection, CRUD,
+    and publication with `CoursePublished` dispatch.
 
 ### Access rules
 
@@ -167,8 +173,8 @@ Do not add category features that are not required by the specification.
 -   Only an authorized author or administrator may publish a course.
 -   Only published courses may be purchased.
 
-Do not create `CourseService` solely to wrap simple CRUD. Add a service
-only if a real business operation requires orchestration.
+Course operations share one service rather than introducing separate
+repositories or a class for each CRUD action.
 
 ------------------------------------------------------------------------
 
@@ -181,6 +187,8 @@ only if a real business operation requires orchestration.
 -   `Lesson` model: lesson title, content, order number, optional
     material path, and relationship to a course.
 -   `LessonPolicy`: enforce permissions for lesson operations.
+-   `LessonService`: course program queries and access filtering, lesson
+    persistence, uploaded materials, and material-path resolution.
 -   Form Requests: validate lesson input.
 -   Laravel Storage: store uploaded lesson materials; persist the
     storage path in the database, not the file bytes.
@@ -198,6 +206,10 @@ Nginx blocks legacy `/storage/lessons/` links. Existing installations run
 
 ### Progress
 
+-   `LessonProgressController` delegates completion to `LessonProgressService`.
+-   `LessonProgressService` checks student/purchase access and preserves
+    the transaction and student-row lock around progress updates and the
+    `CourseCompleted` event.
 -   A progress record represents one user's completion state for a
     lesson.
 -   Enforce uniqueness for the relevant user/lesson pair at the database
@@ -228,9 +240,11 @@ lessons, and courses before migrations are written.
     needs from a payment provider.
 -   A concrete provider adapter: performs HTTP communication with the
     Mock Payment Provider.
--   Webhook handler/controller: receives provider notifications and
-    delegates verification and state changes to the appropriate
-    application logic.
+-   `PaymentWebhookRequest`: verifies the signature and validates input.
+-   `PaymentWebhookService`: locks the purchase and applies the terminal
+    state change with idempotency, logging, and `CoursePurchased` dispatch.
+-   `PaymentWebhookController`: maps successful, duplicate, missing, and
+    conflicting operation results to the existing HTTP contract.
 
 Keep provider-specific HTTP details and signature handling isolated from
 the core purchase workflow where practical. Do not create additional
@@ -290,6 +304,9 @@ payment implementation and tested.
 
 ## 9. Certificates
 
+-   `CertificateService` queries student certificates and resolves private
+    PDF paths. `CertificateController` authorizes downloads and builds the
+    JSON/file response. PDF generation remains in the existing queued job.
 -   Certificate data is associated with the user and completed course
     according to the approved schema.
 -   Generate the required certificate as a PDF using a background job.

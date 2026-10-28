@@ -105,4 +105,23 @@ class ProfileTest extends TestCase
             )
         );
     }
+
+    public function test_incorrect_current_password_returns_existing_error_without_changing_credentials(): void
+    {
+        $user = User::factory()->create(['password' => 'old-password']);
+        $originalHash = $user->password;
+        $token = $user->createToken('api-token');
+
+        $this->withToken($token->plainTextToken)
+            ->patchJson('/api/profile/password', [
+                'current_password' => 'wrong-password',
+                'password' => 'new-password',
+                'password_confirmation' => 'new-password',
+            ])
+            ->assertUnprocessable()
+            ->assertExactJson(['message' => 'Current password is incorrect.']);
+
+        $this->assertSame($originalHash, $user->refresh()->password);
+        $this->assertSame(1, $user->tokens()->count());
+    }
 }

@@ -1,5 +1,38 @@
 # Implementation decisions
 
+## Controller/service responsibilities (2026-10-28)
+
+Following code review, Laravel controllers delegate application operations
+to constructor-injected services. `AuthService`, `UserService`,
+`CategoryService`, `CourseService`, `LessonService`, `LessonProgressService`,
+and `CertificateService` cover their existing use cases. `PurchaseService`
+is reused for purchase creation/status lookup; `PaymentWebhookService`
+owns payment-result processing.
+
+The purpose is to make the existing operations reusable and testable
+without HTTP. Controllers retain input normalization, Policy/endpoint
+authorization, JSON formatting, file responses, and HTTP status mapping.
+Services accept validated values/models and return data rather than HTTP
+responses. They retain the existing access/visibility rules where those
+rules are part of the operation. Form Requests, Policies, route paths,
+response bodies, status codes, schema, frontend, provider API, queue jobs,
+and domain behavior are unchanged.
+
+Existing feature/integration tests remain regression checks. Direct service
+tests cover registration/password handling, combined filters (including
+zero values), publication events, idempotent completion, and webhook state
+transitions. Payment and progress transactions, row locks, event dispatch
+timing, and error messages are preserved. Expected webhook exceptions are
+mapped in its controller so missing operations still return the original
+404 JSON and conflicting terminal results still return 409.
+
+The alternative was leaving simple CRUD in controllers while extracting
+only complex workflows. A consistent per-domain service boundary was
+chosen as requested during review. No generic CRUD layer, repositories,
+new business endpoints, tables, or dependencies are added. Service-level
+authorization must not be assumed: entry points retain their existing
+Policies/role checks and validated inputs.
+
 ## Independent interfaces (2026-10-28)
 
 The course UI runs on localhost:5174, the provider UI on localhost:5173,
