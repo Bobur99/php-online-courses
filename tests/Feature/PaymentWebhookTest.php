@@ -172,4 +172,15 @@ class PaymentWebhookTest extends TestCase
             ->postJson('/api/webhooks/payment', $payload)->assertConflict();
         $this->assertSame('failed', $purchase->refresh()->status);
     }
+
+    public function test_unknown_operation_returns_original_not_found_response(): void
+    {
+        config(['services.payment_provider.webhook_secret' => 'test-secret']);
+        $payload = ['operation_id' => 'missing-operation', 'status' => 'success'];
+
+        $this->withHeader('X-Payment-Signature', $this->signature($payload))
+            ->postJson('/api/webhooks/payment', $payload)
+            ->assertNotFound()
+            ->assertExactJson(['message' => 'Purchase not found.']);
+    }
 }

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\PurchaseRequest;
 use App\Models\Course;
-use App\Models\Purchase;
 use App\Services\PurchaseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,8 +12,7 @@ class PurchaseController extends Controller
 {
     public function __construct(
         private PurchaseService $purchaseService,
-    ) {
-    }
+    ) {}
 
     public function store(
         PurchaseRequest $request,
@@ -35,11 +33,7 @@ class PurchaseController extends Controller
     {
         abort_unless($request->user()->role === 'student', 403);
 
-        $purchase = Purchase::query()
-            ->where('student_id', $request->user()->id)
-            ->where('course_id', $course->id)
-            ->latest('id')
-            ->first();
+        $purchase = $this->purchaseService->latestForStudent($request->user(), $course);
 
         return response()->json([
             'purchase' => $purchase,

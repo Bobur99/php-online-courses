@@ -2,56 +2,30 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\CoursePurchased;
 use App\Http\Requests\PaymentWebhookRequest;
-use App\Models\Purchase;
+use App\Services\PaymentWebhookService;
+use DomainException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class PaymentWebhookController extends Controller
 {
+    public function __construct(private PaymentWebhookService $webhookService) {}
+
     public function handle(PaymentWebhookRequest $request): JsonResponse
     {
         $data = $request->validated();
 
-        return DB::transaction(function () use ($data): JsonResponse {
-            $purchase = Purchase::where(
-                'provider_operation_id',
-                $data['operation_id']
-            )->lockForUpdate()->first();
+        try {
+            $processed = $this->webhookService->process($data['operation_id'], $data['status']);
+        } catch (ModelNotFoundException) {
+            return response()->json(['message' => 'Purchase not found.'], 404);
+        } catch (DomainException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 409);
+        }
 
-            if (! $purchase) {
-                return response()->json([
-                    'message' => 'Purchase not found.',
-                ], 404);
-            }
-
-            $nextStatus = $data['status'] === 'success' ? 'paid' : 'failed';
-            if ($purchase->status !== 'pending') {
-                if ($purchase->status !== $nextStatus) {
-                    Log::warning('Payment webhook conflicts with terminal status.', ['operation_id' => $data['operation_id']]);
-
-                    return response()->json(['message' => 'Payment result conflicts with an already processed operation.'], 409);
-                }
-
-                return response()->json([
-                    'message' => 'Webhook already processed.',
-                ]);
-            }
-
-            $purchase->status = $nextStatus;
-
-            $purchase->save();
-            Log::info('Payment webhook processed.', ['operation_id' => $data['operation_id'], 'purchase_id' => $purchase->id, 'status' => $nextStatus]);
-
-            if ($purchase->status === 'paid') {
-                CoursePurchased::dispatch($purchase->refresh());
-            }
-
-            return response()->json([
-                'message' => 'Webhook processed.',
-            ]);
-        });
+        return response()->json([
+            'message' => $processed ? 'Webhook processed.' : 'Webhook already processed.',
+        ]);
     }
 }

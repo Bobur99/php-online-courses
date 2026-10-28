@@ -17,6 +17,15 @@ class PurchaseService
         private PaymentProviderInterface $paymentProvider,
     ) {}
 
+    public function latestForStudent(User $student, Course $course): ?Purchase
+    {
+        return Purchase::query()
+            ->where('student_id', $student->id)
+            ->where('course_id', $course->id)
+            ->latest('id')
+            ->first();
+    }
+
     public function createPurchase(User $student, Course $course): array
     {
         if ($student->role !== 'student') {
