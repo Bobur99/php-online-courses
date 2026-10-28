@@ -2,52 +2,36 @@
 
 namespace App\Http\Controllers\Auth;
 
-use App\Http\Requests\Auth\ChangePasswordRequest;
-use App\Http\Requests\Auth\ProfileUpdateRequest;
-use App\Events\UserRegistered;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\ChangePasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
-use Illuminate\Support\Facades\Hash;
-use App\Models\User;
+use App\Http\Requests\Auth\ProfileUpdateRequest;
+use App\Http\Requests\Auth\RegisterRequest;
+use App\Services\AuthService;
+use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AuthController extends Controller
 {
+    public function __construct(
+        private AuthService $authService,
+        private UserService $userService,
+    ) {}
+
     public function register(RegisterRequest $request): JsonResponse
     {
-        $user = User::create([
-            'name' => $request->string('name')->toString(),
-            'email' => $request->string('email')->toString(),
-            'password' => $request->string('password')->toString(),
-        ]);
-
-        $user->role = 'student';
-        $user->is_blocked = false;
-        $user->save();
-
-        UserRegistered::dispatch($user);
-
-        $token = $user->createToken('api-token')->plainTextToken;
-
-        return response()->json([
-            'user' => $user,
-            'token' => $token,
-        ], 201);
+        return response()->json($this->authService->register($request->validated()), 201);
     }
 
     public function login(LoginRequest $request): JsonResponse
     {
-        $user = User::where(
-            'email',
-            $request->string('email')->toString()
-        )->first();
-
-        if (! $user || ! Hash::check(
+        $user = $this->authService->authenticate(
+            $request->string('email')->toString(),
             $request->string('password')->toString(),
-            $user->password
-        )) {
+        );
+
+        if (! $user) {
             return response()->json([
                 'message' => 'Invalid credentials.',
             ], 401);
@@ -59,17 +43,15 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $token = $user->createToken('api-token')->plainTextToken;
-
         return response()->json([
             'user' => $user,
-            'token' => $token,
+            'token' => $this->authService->issueToken($user),
         ]);
     }
 
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        $this->authService->logout($request->user());
 
         return response()->json([
             'message' => 'Logged out successfully.',
@@ -84,30 +66,21 @@ class AuthController extends Controller
     public function updateProfile(
         ProfileUpdateRequest $request
     ): JsonResponse {
-        $user = $request->user();
-
-        $user->fill($request->validated());
-        $user->save();
-
-        return response()->json($user);
+        return response()->json($this->userService->updateProfile($request->user(), $request->validated()));
     }
 
     public function changePassword(
         ChangePasswordRequest $request
     ): JsonResponse {
-        $user = $request->user();
-
-        if (! Hash::check(
+        if (! $this->userService->changePassword(
+            $request->user(),
             $request->string('current_password')->toString(),
-            $user->password
+            $request->string('password')->toString(),
         )) {
             return response()->json([
                 'message' => 'Current password is incorrect.',
             ], 422);
         }
-
-        $user->password = $request->string('password')->toString();
-        $user->save();
 
         return response()->json([
             'message' => 'Password changed successfully.',

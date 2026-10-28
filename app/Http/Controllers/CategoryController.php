@@ -4,14 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\CategoryRequest;
 use App\Models\Category;
+use App\Services\CategoryService;
 use Illuminate\Http\JsonResponse;
 
 class CategoryController extends Controller
 {
+    public function __construct(private CategoryService $categoryService) {}
+
     public function index(): JsonResponse
     {
         return response()->json([
-            'data' => Category::query()->get(),
+            'data' => $this->categoryService->all(),
         ]);
     }
 
@@ -19,9 +22,7 @@ class CategoryController extends Controller
     {
         $this->authorize('create', Category::class);
 
-        $category = Category::create($request->validated());
-
-        return response()->json($category, 201);
+        return response()->json($this->categoryService->create($request->validated()), 201);
     }
 
     public function update(
@@ -30,16 +31,14 @@ class CategoryController extends Controller
     ): JsonResponse {
         $this->authorize('update', $category);
 
-        $category->update($request->validated());
-
-        return response()->json($category);
+        return response()->json($this->categoryService->update($category, $request->validated()));
     }
 
     public function destroy(Category $category): JsonResponse
     {
         $this->authorize('delete', $category);
 
-        $category->delete();
+        $this->categoryService->delete($category);
 
         return response()->json(status: 204);
     }

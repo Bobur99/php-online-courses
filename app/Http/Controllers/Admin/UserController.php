@@ -6,16 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\BlockUserRequest;
 use App\Http\Requests\Admin\ChangeUserRoleRequest;
 use App\Models\User;
+use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 
 class UserController extends Controller
 {
+    public function __construct(private UserService $userService) {}
+
     public function index(): JsonResponse
     {
         $this->authorize('viewAny', User::class);
 
         return response()->json([
-            'data' => User::query()->get(),
+            'data' => $this->userService->all(),
         ]);
     }
 
@@ -25,10 +28,7 @@ class UserController extends Controller
     ): JsonResponse {
         $this->authorize('update', $user);
 
-        $user->role = $request->validated('role');
-        $user->save();
-
-        return response()->json($user);
+        return response()->json($this->userService->changeRole($user, $request->validated('role')));
     }
 
     public function block(
@@ -37,9 +37,6 @@ class UserController extends Controller
     ): JsonResponse {
         $this->authorize('update', $user);
 
-        $user->is_blocked = $request->boolean('is_blocked');
-        $user->save();
-
-        return response()->json($user);
+        return response()->json($this->userService->setBlocked($user, $request->boolean('is_blocked')));
     }
 }
