@@ -84,19 +84,18 @@ class CourseController extends Controller
         $query = Course::query()
             ->where('status', 'published');
 
-        if ($request->filled('search')) {
-            $search = $request->string('search')->toString();
+        $query
+            ->when($request->filled('search'), function ($query) use ($request): void {
+                $search = $request->string('search')->toString();
 
-            $query->where('title', 'ilike', '%'.$search.'%');
-        }
-
-        if ($request->filled('category_id')) {
-            $query->where('category_id', $request->integer('category_id'));
-        }
-
-        if ($request->filled('teacher_id')) {
-            $query->where('author_id', $request->integer('teacher_id'));
-        }
+                $query->where('title', 'ilike', '%'.$search.'%');
+            })
+            ->when($request->filled('category_id'), function ($query) use ($request): void {
+                $query->where('category_id', $request->integer('category_id'));
+            })
+            ->when($request->filled('teacher_id'), function ($query) use ($request): void {
+                $query->where('author_id', $request->integer('teacher_id'));
+            });
 
         $sort = $request->query('sort', 'created_at');
         $direction = $request->query('direction', 'desc');
