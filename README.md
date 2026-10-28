@@ -18,7 +18,7 @@ The project requirements are documented in [`docs/requirements.md`](docs/require
 - PHP-FPM
 - PHPUnit
 
-## Planned Features
+## Implemented Features
 
 - RESTful JSON API
 - User authentication and role-based access control
@@ -29,7 +29,8 @@ The project requirements are documented in [`docs/requirements.md`](docs/require
 - Asynchronous certificate generation
 - Automated tests
 
-Features will be implemented incrementally according to the project requirements.
+Implementation details and deployment notes are documented in
+[`docs/decisions.md`](docs/decisions.md).
 
 ## Development Principles
 
@@ -42,7 +43,18 @@ Features will be implemented incrementally according to the project requirements
 
 ## Getting Started
 
-Development environment setup and project-specific instructions will be documented as the implementation progresses.
+Copy `.env.example` to `.env`, install Composer dependencies, configure the
+application key, then start Docker and apply migrations. The provider uses
+`PAYMENT_PROVIDER_WEBHOOK_SECRET` from the same `.env` as Laravel.
+
+Start each frontend with `npm run dev` from its own directory:
+
+- `frontend/apps/course-platform`: http://localhost:5174
+- `frontend/apps/payment-platform`: http://localhost:5173
+
+The API runs on http://localhost and the provider API on http://localhost:8080.
+The UIs remain independent; payment confirmation is delivered by a signed
+server-to-server webhook. Local email uses the log transport by default.
 
 ## Project Status
 

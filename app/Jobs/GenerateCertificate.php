@@ -17,8 +17,7 @@ class GenerateCertificate implements ShouldQueue
     public function __construct(
         public User $student,
         public Course $course,
-    ) {
-    }
+    ) {}
 
     public function handle(): void
     {
@@ -33,16 +32,22 @@ class GenerateCertificate implements ShouldQueue
         );
 
         $filePath = "certificates/{$certificate->id}.pdf";
+        if ($certificate->file_path && Storage::disk('local')->exists($certificate->file_path)) {
+            return;
+        }
 
         $pdf = Pdf::loadView('certificates.certificate', [
             'student' => $this->student,
             'course' => $this->course,
         ]);
 
-        Storage::disk('local')->put(
+        $stored = Storage::disk('local')->put(
             $filePath,
             $pdf->output()
         );
+        if (! $stored) {
+            throw new \RuntimeException('Certificate could not be stored.');
+        }
 
         $certificate->update([
             'file_path' => $filePath,

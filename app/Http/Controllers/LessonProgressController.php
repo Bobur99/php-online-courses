@@ -6,9 +6,11 @@ use App\Events\CourseCompleted;
 use App\Models\Lesson;
 use App\Models\LessonProgress;
 use App\Models\Purchase;
+use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LessonProgressController extends Controller
 {
@@ -36,45 +38,48 @@ class LessonProgressController extends Controller
             );
         }
 
-        $course = $lesson->course;
+        return DB::transaction(function () use ($student, $lesson): JsonResponse {
+            User::whereKey($student->id)->lockForUpdate()->firstOrFail();
+            $course = $lesson->course;
 
-        $completedBefore = LessonProgress::query()
-            ->where('student_id', $student->id)
-            ->whereHas('lesson', function ($query) use ($course): void {
-                $query->where('course_id', $course->id);
-            })
-            ->where('is_completed', true)
-            ->count();
+            $completedBefore = LessonProgress::query()
+                ->where('student_id', $student->id)
+                ->whereHas('lesson', function ($query) use ($course): void {
+                    $query->where('course_id', $course->id);
+                })
+                ->where('is_completed', true)
+                ->count();
 
-        $progress = LessonProgress::updateOrCreate(
-            [
-                'student_id' => $student->id,
-                'lesson_id' => $lesson->id,
-            ],
-            [
-                'is_completed' => true,
-                'completed_at' => now(),
-            ]
-        );
+            $progress = LessonProgress::updateOrCreate(
+                [
+                    'student_id' => $student->id,
+                    'lesson_id' => $lesson->id,
+                ],
+                [
+                    'is_completed' => true,
+                    'completed_at' => now(),
+                ]
+            );
 
-        $totalLessons = $course->lessons()->count();
+            $totalLessons = $course->lessons()->count();
 
-        $completedLessons = LessonProgress::query()
-            ->where('student_id', $student->id)
-            ->whereHas('lesson', function ($query) use ($course): void {
-                $query->where('course_id', $course->id);
-            })
-            ->where('is_completed', true)
-            ->count();
+            $completedLessons = LessonProgress::query()
+                ->where('student_id', $student->id)
+                ->whereHas('lesson', function ($query) use ($course): void {
+                    $query->where('course_id', $course->id);
+                })
+                ->where('is_completed', true)
+                ->count();
 
-        if (
-            $totalLessons > 0
-            && $completedLessons === $totalLessons
-            && $completedBefore < $totalLessons
-        ) {
-            CourseCompleted::dispatch($student, $course);
-        }
+            if (
+                $totalLessons > 0
+                && $completedLessons === $totalLessons
+                && $completedBefore < $totalLessons
+            ) {
+                CourseCompleted::dispatch($student, $course);
+            }
 
-        return response()->json($progress);
+            return response()->json($progress);
+        });
     }
 }

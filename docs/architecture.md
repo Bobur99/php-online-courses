@@ -28,17 +28,15 @@
 
 ## 1. Purpose and scope
 
-This document describes the proposed architecture for the backend API of
+This document describes the implemented architecture for the backend API of
 `php-online-courses`.
 
 The technical specification (`docs/requirements.md`) is the source of
 truth. This document explains how the required functionality is
 organized; it does not introduce additional product features.
 
-**Current stage:** architecture design. Database migrations, models,
-controllers, services, and business functionality must be implemented in
-later, separate steps after the architecture and database schema are
-reviewed.
+**Current stage:** implementation and verification. See `docs/decisions.md`
+for the payment, private-material, and notification decisions.
 
 ------------------------------------------------------------------------
 
@@ -191,6 +189,13 @@ Access to lesson content and materials must follow the requirements,
 including course access and ownership rules. The precise access policy
 must not be broadened beyond the specification.
 
+Public lesson lists expose the program, not lesson content or file paths.
+Authors, administrators, and paid students may read content. Drafts are
+hidden from other users. Materials use the private disk and
+`GET /api/lessons/{lesson}/material` with Sanctum and LessonPolicy.
+Nginx blocks legacy `/storage/lessons/` links. Existing installations run
+`php artisan materials:privatize` to move verified copies to private storage.
+
 ### Progress
 
 -   A progress record represents one user's completion state for a
@@ -219,7 +224,7 @@ lessons, and courses before migrations are written.
     workflow.
 -   `Purchase` model: stores purchase status, course/user relationships,
     and the provider's operation identifier.
--   `PaymentInterface`: defines the operations the main application
+-   `PaymentProviderInterface`: defines the operations the main application
     needs from a payment provider.
 -   A concrete provider adapter: performs HTTP communication with the
     Mock Payment Provider.
@@ -230,6 +235,17 @@ lessons, and courses before migrations are written.
 Keep provider-specific HTTP details and signature handling isolated from
 the core purchase workflow where practical. Do not create additional
 layers unless implementation demonstrates a real benefit.
+
+Purchase creation locks the student's row before checking for existing paid
+or pending purchases. Failed attempts remain in history and a retry creates
+a new operation. Provider failures return 503 and roll back local creation.
+Webhook verification uses HMAC-SHA256 over the raw request body, validates
+the operation and status, and locks the purchase before changing it.
+Terminal results are immutable; identical notifications are idempotent.
+
+The purchase API still returns `payment_url` as required, but the course UI
+does not follow it. Both UIs remain on their own origins. The course checkout
+polls its own backend; only a verified webhook grants access.
 
 ### Separate Mock Payment Provider
 
@@ -367,7 +383,7 @@ the proposed schema before executing migrations.
 - Users have the roles `admin`, `teacher`, and `student`, plus an `is_blocked` flag. Blocked users must not be able to log in or access protected API operations, including with existing credentials or tokens.
 - Only administrators may manage categories.
 - A course has one author and one category. Course statuses are `draft` and `published`.
-- A student may have only one purchase record for a given course. A failed payment may be retried using the existing purchase record rather than creating another purchase.
+- A student can have multiple purchase attempts for a course, preserving failed attempts as history. Creation is serialized per student and blocked if any paid or pending purchase already exists. A retry after failure creates a new provider operation.
 - The application uses UZS as its single currency. Purchase amount is captured when the purchase is created.
 - Course access is granted only after a verified successful payment notification.
 - Lesson completion is unique for each student/lesson pair. A course is completed when all its lessons are completed by the student.
@@ -375,7 +391,7 @@ the proposed schema before executing migrations.
 - Existing Laravel migrations must be preserved. Schema changes to existing tables must use new migrations.
 - The proposed schema must be reviewed and approved before any new migrations are created.
 
-### Database tables proposed for review
+### Implemented database tables
 
 Business tables:
 - `users` — extend the existing table with role and blocked-user fields.
@@ -446,6 +462,5 @@ Architecture is ready for the next stage when:
 -   the database schema can be designed from the approved requirements
     and architecture.
 
-**Next step:** inspect existing migrations and the actual requirements,
-then propose a database schema for review. Do not start implementing
-business logic until that schema is approved.
+Continue validating changes against the specification with regression tests,
+including authorization, provider outages, webhook delivery, and UI behavior.
