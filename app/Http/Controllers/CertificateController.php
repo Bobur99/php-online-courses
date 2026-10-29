@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionName;
 use App\Models\Certificate;
 use App\Services\CertificateService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -15,7 +16,7 @@ class CertificateController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        abort_unless($request->user()->role === 'student', 403);
+        abort_unless($request->user()->can(PermissionName::ViewOwnCertificates->value), 403);
 
         $certificates = $this->certificateService->forStudent($request->user())
             ->map(fn (Certificate $certificate): array => [
@@ -32,7 +33,8 @@ class CertificateController extends Controller
         Request $request,
         Certificate $certificate
     ): BinaryFileResponse {
-        if ($certificate->student_id !== $request->user()->id) {
+        if (! $request->user()->can(PermissionName::DownloadOwnCertificates->value)
+            || $certificate->student_id !== $request->user()->id) {
             throw new AuthorizationException(
                 'You cannot download this certificate.'
             );

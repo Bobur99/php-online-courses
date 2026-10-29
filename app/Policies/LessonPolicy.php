@@ -2,29 +2,34 @@
 
 namespace App\Policies;
 
+use App\Enums\PermissionName;
+use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\User;
+use Illuminate\Support\Facades\Gate;
 
 class LessonPolicy
 {
     public function viewMaterial(User $user, Lesson $lesson): bool
     {
-        return $this->update($user, $lesson)
-            || ($user->role === 'student' && $lesson->course->purchases()
-                ->where('student_id', $user->id)->where('status', 'paid')->exists());
+        return Gate::forUser($user)->allows('viewContent', $lesson->course);
+    }
+
+    public function create(User $user, Course $course): bool
+    {
+        return $user->can(PermissionName::CreateAnyLessons->value)
+            || ($user->can(PermissionName::CreateOwnLessons->value) && $course->author_id === $user->id);
     }
 
     public function update(User $user, Lesson $lesson): bool
     {
-        return $user->role === 'admin'
-            || (
-                $user->role === 'teacher'
-                && $lesson->course->author_id === $user->id
-            );
+        return $user->can(PermissionName::UpdateAnyLessons->value)
+            || ($user->can(PermissionName::UpdateOwnLessons->value) && $lesson->course->author_id === $user->id);
     }
 
     public function delete(User $user, Lesson $lesson): bool
     {
-        return $this->update($user, $lesson);
+        return $user->can(PermissionName::DeleteAnyLessons->value)
+            || ($user->can(PermissionName::DeleteOwnLessons->value) && $lesson->course->author_id === $user->id);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\PaymentProviderInterface;
+use App\Enums\PermissionName;
 use App\Models\Course;
 use App\Models\Purchase;
 use App\Models\User;
@@ -28,7 +29,7 @@ class PurchaseService
 
     public function createPurchase(User $student, Course $course): array
     {
-        if ($student->role !== 'student') {
+        if (! $student->can(PermissionName::PurchaseCourses->value)) {
             throw new AuthorizationException(
                 'Only students can purchase courses.'
             );

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionName;
 use App\Http\Requests\CourseRequest;
 use App\Models\Course;
 use App\Services\CourseService;
@@ -21,14 +22,14 @@ class CourseController extends Controller
 
     public function teacherIndex(Request $request): JsonResponse
     {
-        abort_unless($request->user()->role === 'teacher', 403);
+        abort_unless($request->user()->can(PermissionName::ViewOwnCourses->value), 403);
 
         return response()->json(['data' => $this->courseService->forTeacher($request->user())]);
     }
 
     public function studentIndex(Request $request): JsonResponse
     {
-        abort_unless($request->user()->role === 'student', 403);
+        abort_unless($request->user()->can(PermissionName::StudyCourses->value), 403);
 
         return response()->json(['data' => $this->courseService->forStudent($request->user())]);
     }

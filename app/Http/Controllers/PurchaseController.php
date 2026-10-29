@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionName;
 use App\Http\Requests\PurchaseRequest;
 use App\Models\Course;
 use App\Services\PurchaseService;
@@ -31,7 +32,7 @@ class PurchaseController extends Controller
 
     public function show(Request $request, Course $course): JsonResponse
     {
-        abort_unless($request->user()->role === 'student', 403);
+        abort_unless($request->user()->can(PermissionName::PurchaseCourses->value), 403);
 
         $purchase = $this->purchaseService->latestForStudent($request->user(), $course);
 

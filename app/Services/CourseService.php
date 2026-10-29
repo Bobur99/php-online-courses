@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Facades\Gate;
 
 class CourseService
 {
@@ -101,9 +102,7 @@ class CourseService
             ->where('status', 'paid')
             ->exists() ?? false;
 
-        abort_unless($course->status === 'published' || $isPurchased
-            || $user?->role === 'admin'
-            || ($user?->role === 'teacher' && $course->author_id === $user->id), 404);
+        abort_unless(Gate::forUser($user)->allows('view', $course), 404);
 
         return [
             ...$course->load(['category', 'author:id,name,email'])->toArray(),

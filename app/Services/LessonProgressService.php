@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\PermissionName;
 use App\Events\CourseCompleted;
 use App\Models\Lesson;
 use App\Models\LessonProgress;
@@ -14,7 +15,7 @@ class LessonProgressService
 {
     public function complete(User $student, Lesson $lesson): LessonProgress
     {
-        if ($student->role !== 'student') {
+        if (! $student->can(PermissionName::CompleteLessons->value)) {
             throw new AuthorizationException('Only students can complete lessons.');
         }
 

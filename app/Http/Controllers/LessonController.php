@@ -23,7 +23,7 @@ class LessonController extends Controller
 
     public function store(LessonRequest $request, Course $course): JsonResponse
     {
-        $this->authorize('update', $course);
+        $this->authorize('create', [Lesson::class, $course]);
 
         return response()->json($this->lessonService->create(
             $course,

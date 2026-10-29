@@ -2,19 +2,21 @@
 
 namespace App\Services;
 
+use App\Enums\PermissionName;
 use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\LessonProgress;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 
 class LessonService
 {
     public function forCourse(Course $course, ?User $user): Collection
     {
-        $completedLessonIds = $user?->role === 'student'
+        $completedLessonIds = $user?->can(PermissionName::StudyCourses->value)
             ? LessonProgress::query()
                 ->where('student_id', $user->id)
                 ->where('is_completed', true)
@@ -22,12 +24,7 @@ class LessonService
                 ->pluck('lesson_id')
                 ->all()
             : [];
-        $canAccessMaterials = $user !== null && (
-            $user->role === 'admin'
-            || ($user->role === 'teacher' && $course->author_id === $user->id)
-            || ($user->role === 'student' && $course->purchases()
-                ->where('student_id', $user->id)->where('status', 'paid')->exists())
-        );
+        $canAccessMaterials = $user !== null && Gate::forUser($user)->allows('viewContent', $course);
         abort_unless($course->status === 'published' || $canAccessMaterials, 404);
 
         return $course->lessons()

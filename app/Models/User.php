@@ -2,17 +2,19 @@
 
 namespace App\Models;
 
+use App\Enums\PermissionName;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable(['name', 'email', 'password'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'roleDefinition'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -25,6 +27,25 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_blocked' => 'boolean',
         ];
+    }
+
+    public function roleDefinition(): BelongsTo
+    {
+        return $this->belongsTo(Role::class, 'role', 'name');
+    }
+
+    public function hasPermission(PermissionName|string $permission): bool
+    {
+        if ($this->is_blocked) {
+            return false;
+        }
+
+        $name = $permission instanceof PermissionName ? $permission->value : $permission;
+
+        // Query current grants instead of caching permissions in the token/session.
+        return $this->roleDefinition()
+            ->whereHas('permissions', fn ($query) => $query->where('name', $name))
+            ->exists();
     }
 
     public function courses(): HasMany
