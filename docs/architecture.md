@@ -103,8 +103,44 @@ in place. No repository or generic CRUD abstraction is introduced.
     Laravel authentication integration.
 -   `AuthController`: also exposes profile/password HTTP operations.
 -   `Admin\UserController`: administrative user-management HTTP operations.
--   `UserPolicy` and/or explicit role checks: enforce permissions
-    server-side.
+-   Laravel Gates resolve database-backed role permissions; Policies add
+    resource ownership and purchase-access checks.
+
+### Role-based authorization (RBAC)
+
+Each user has one role, as specified: `admin`, `teacher`, or `student`.
+Membership is enforced by the foreign key `users.role -> roles.name`.
+`roles` and `permissions` are separate models/tables, connected through
+the unique `permission_role` pivot. The existing string `role` remains in
+API responses; no frontend or existing user-data rewrite is required.
+
+The authorization flow is:
+
+```text
+Sanctum user -> assigned Role -> Permission -> Laravel Gate -> Policy/resource conditions
+```
+
+-   `app/Enums/PermissionName.php`: names of the supported operations.
+-   `database/seeders/RbacSeeder.php`: explicit default permission matrix
+    for the three roles, preserving the previous permissions.
+-   `User::hasPermission()`: resolves current grants from the database.
+-   `AppServiceProvider`: registers permission Gates; blocked users are
+    denied without an administrator bypass.
+-   Policies: require permissions and check ownership or paid access.
+    For example, `courses.update-own` still requires matching `author_id`;
+    `courses.update-any` allows the administrator to edit other authors' courses.
+
+Permission checks do not cache grants in tokens or loaded relations.
+Revocation takes effect on the next check; role changes work with an
+existing Sanctum token. Unknown permissions and guests are denied.
+Self-service profile operations still require authentication and cannot
+assign roles/block state. No new role/permission management endpoints are added.
+
+Default permissions preserve the existing separation: administrators manage
+users/categories/all courses, teachers manage their own courses/lessons,
+and students purchase courses, study paid materials, and complete lessons.
+Certificate lists remain student-only; downloading an owned certificate
+remains possible after switching to another supported role.
 
 ### Authentication approach
 
@@ -398,6 +434,7 @@ the proposed schema before executing migrations.
 ### Approved database design decisions
 
 - Users have the roles `admin`, `teacher`, and `student`, plus an `is_blocked` flag. Blocked users must not be able to log in or access protected API operations, including with existing credentials or tokens.
+- Role permissions use `roles`, `permissions`, and `permission_role`. Each user has one role via `users.role -> roles.name`, preserving the existing API and data. Permission pairs and role/permission names are unique; assigned roles cannot be deleted.
 - Only administrators may manage categories.
 - A course has one author and one category. Course statuses are `draft` and `published`.
 - A student can have multiple purchase attempts for a course, preserving failed attempts as history. Creation is serialized per student and blocked if any paid or pending purchase already exists. A retry after failure creates a new provider operation.
@@ -411,7 +448,10 @@ the proposed schema before executing migrations.
 ### Implemented database tables
 
 Business tables:
-- `users` — extend the existing table with role and blocked-user fields.
+- `users` — role membership (foreign key to `roles.name`) and blocked-user state.
+- `roles` — the three supported roles.
+- `permissions` — named backend operations.
+- `permission_role` — role-permission grants, with a composite primary key and foreign keys.
 - `categories` — course categories.
 - `courses` — course details, author, category, price, and status.
 - `lessons` — course lessons and optional material path.

@@ -1,5 +1,61 @@
 # Implementation decisions
 
+## Database-backed RBAC with Laravel Policies (2026-10-29)
+
+Following explicit review feedback, fixed role comparisons have been
+replaced with a separate role-permission layer. Business permissions from
+the requirements remain the same. Laravel Gates check named permissions
+from `roles`, `permissions`, and `permission_role`; Policies then enforce
+ownership or a paid purchase. The application does not install an external
+authorization package or add permission-management endpoints.
+
+The requirements assign one of three roles to a user. `users.role` is
+therefore retained as a foreign key to unique `roles.name`, with an index.
+This represents single-role RBAC while retaining the existing database
+values, API's string `role`, role-changing endpoint, and frontend menus.
+There is no need for a multi-role assignment pivot or duplicate role column.
+`User::roleDefinition()` and `Role::permissions()` expose the relationships.
+The role relationship is hidden from user JSON responses.
+
+The permission catalog is `app/Enums/PermissionName.php`; the initial matrix
+is `database/seeders/RbacSeeder.php`. Administrators have explicit permissions,
+not a wildcard bypass: by default they still cannot buy courses or mark
+lessons complete. Teacher `*-own` permissions require course ownership.
+Students require both `courses.study` and a paid purchase for lesson content.
+Owned certificate downloads are granted to all three roles to retain the
+previous access after a student's role changes; certificate lists remain
+student-only. Common self-profile operations remain authenticated self-service.
+
+Gates query current grants instead of caching them in tokens/relations.
+Revocation and role changes take effect with existing tokens. Blocked users
+are denied by both existing middleware and the Gate's deny-only before
+callback; unknown permissions and guests are denied. Frontend navigation
+still renders the three default roles; backend permission checks are authoritative.
+
+The additive migration `2026_10_29_000000_create_rbac_tables` creates tables,
+seeds required reference data, then adds the user-role foreign key. Fresh
+installs and upgrades therefore work with ordinary `php artisan migrate`
+without a separate required seeding step. The migration/rollback do not
+rewrite users, tokens, courses, purchases, progress, or certificates.
+PostgreSQL runs the migration transactionally. An unknown legacy role makes
+the FK validation fail and rolls back the migration instead of silently
+changing the user's role. Review such data before retrying an upgrade.
+Rollback removes only RBAC tables, the added index, and foreign key; it
+retains the original `users.role` column and values.
+
+`RbacSeeder` is idempotent and reapplies the documented default matrix.
+It runs during initial RBAC migration and explicit database seeding,
+not on requests/application startup. Re-running it deliberately resets
+grants for the supported roles to their defaults.
+
+Checks cover all role-permission combinations, database grant/revocation
+affecting the API, no administrator bypass, owned/foreign courses, blocked
+users/guests, existing-token role changes, private learning materials,
+payment/progress side-effect prevention, unchanged JSON, migration/rollback
+data preservation, and atomic failure for an unknown legacy role. Existing
+payment, webhook signature, concurrency, learning, and frontend tests remain
+regression checks.
+
 ## Controller/service responsibilities (2026-10-28)
 
 Following code review, Laravel controllers delegate application operations

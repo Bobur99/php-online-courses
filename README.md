@@ -32,6 +32,35 @@ The project requirements are documented in [`docs/requirements.md`](docs/require
 Implementation details and deployment notes are documented in
 [`docs/decisions.md`](docs/decisions.md).
 
+## Authorization: RBAC and Policies
+
+Backend authorization uses database-backed roles and permissions:
+
+```text
+User -> Role -> Permission -> Laravel Gate -> Policy (ownership / paid access)
+```
+
+The three roles remain `admin`, `teacher`, and `student`. Each user has one
+role, and the API retains its existing string `role`. The RBAC migration
+adds the reference tables and initializes default grants automatically;
+existing users, tokens, purchases, and learning progress are preserved.
+
+Code entry points for review:
+
+- [Role and permission matrix](database/seeders/RbacSeeder.php)
+- [Permission names](app/Enums/PermissionName.php)
+- [User role relationship and permission lookup](app/Models/User.php)
+- [Gate registration](app/Providers/AppServiceProvider.php)
+- [Course ownership policy](app/Policies/CoursePolicy.php)
+- [RBAC regression tests](tests/Feature/RbacTest.php)
+- [Migration compatibility tests](tests/Feature/RbacMigrationTest.php)
+
+For an existing installation, apply the additive migration:
+
+```bash
+docker compose exec app php artisan migrate
+```
+
 ## Development Principles
 
 - Follow the approved project requirements.
